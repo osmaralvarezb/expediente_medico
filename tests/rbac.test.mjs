@@ -15,4 +15,4 @@ assert.equal(can('adscrito', 'notes:reject'), true);
 assert.equal(noteStatusFor('mip'), 'pendiente', 'Notas MIP quedan pendientes de validación');
 assert.equal(noteStatusFor('residente'), 'firmada');
 assert.equal(can('desconocido', 'patients:read'), false);
-console.log('RBAC OK');
+console.log('RBAC OK (15 aserciones)');

@@ -13,20 +13,33 @@ export const CIE10 = [
   ['F41.1', 'Trastorno de ansiedad generalizada'],
 ];
 
+/** Sello SHA-256 de una nota: cubre los datos clínicos y la autoría, no el estado de validación. */
 export async function noteHash(patientId, n) {
   const payload = JSON.stringify([patientId, n.tipo, n.fecha, n.autorId, n.vitals, n.subjetivo, n.exploracion, n.dx, n.plan]);
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** true si el contenido de una nota firmada sigue coincidiendo con su sello. */
+export async function verifyNote(patientId, n) {
+  return !n.hash || (await noteHash(patientId, n)) === n.hash;
+}
+
 // shortcut: contraseñas en claro y login en el cliente solo para la demo; en producción Argon2id + JWT HttpOnly en el servidor.
+// Cédulas profesionales ficticias (8 dígitos). El MIP aún no tiene cédula; Recepción y Admin TI no son personal médico.
 const users = [
-  { id: 'u1', username: 'dra.mendoza', password: 'Iana2026!', name: 'Dra. Laura Mendoza', role: 'adscrito', area: 'Medicina Interna' },
-  { id: 'u2', username: 'dr.ruiz', password: 'Iana2026!', name: 'Dr. Andrés Ruiz', role: 'residente', area: 'R2 Medicina Interna' },
-  { id: 'u3', username: 'mip.torres', password: 'Iana2026!', name: 'Sofía Torres', role: 'mip', area: 'Internado de pregrado' },
-  { id: 'u4', username: 'recepcion', password: 'Iana2026!', name: 'Carmen López', role: 'recepcion', area: 'Admisión' },
-  { id: 'u5', username: 'admin', password: 'Iana2026!', name: 'Jorge Salas', role: 'admin', area: 'Tecnologías de la Información' },
+  { id: 'u1', username: 'dra.mendoza', cedula: '10234567', password: 'Iana2026!', name: 'Dra. Laura Mendoza', role: 'adscrito', area: 'Medicina Interna' },
+  { id: 'u2', username: 'dr.ruiz', cedula: '11345678', password: 'Iana2026!', name: 'Dr. Andrés Ruiz', role: 'residente', area: 'R2 Medicina Interna' },
+  { id: 'u3', username: 'mip.torres', cedula: null, password: 'Iana2026!', name: 'Sofía Torres', role: 'mip', area: 'Internado de pregrado' },
+  { id: 'u4', username: 'recepcion', cedula: null, password: 'Iana2026!', name: 'Carmen López', role: 'recepcion', area: 'Admisión' },
+  { id: 'u5', username: 'admin', cedula: null, password: 'Iana2026!', name: 'Jorge Salas', role: 'admin', area: 'Tecnologías de la Información' },
 ];
+
+/** Busca al usuario por cédula profesional o por nombre de usuario y valida la contraseña. */
+export function findUser(list, login, password) {
+  const key = String(login ?? '').trim().toLowerCase();
+  return list.find(u => (u.username === key || (u.cedula && u.cedula === key)) && u.password === password) ?? null;
+}
 
 const vit = (ta, fc, fr, temp, sat, peso, talla) => ({ ta, fc, fr, temp, sat, peso, talla });
 
@@ -39,8 +52,8 @@ export async function seedDb() {
       createdAt: '2026-09-02T09:15:00', createdBy: 'Carmen López',
       antecedentes: { tipoSangre: 'O+', alergias: 'Penicilina (urticaria)', cronicos: 'Diabetes mellitus tipo 2 (2015), Hipertensión arterial (2018)', quirurgicos: 'Colecistectomía laparoscópica (2010)', heredofamiliares: 'Madre con DM2, padre con cardiopatía isquémica', medicamentos: 'Metformina 850 mg c/12 h, Losartán 50 mg c/24 h' },
       notes: [
-        { id: 'n1', tipo: 'Historia clínica', fecha: '2026-09-02T10:40:00', autorId: 'u1', autor: 'Dra. Laura Mendoza', autorRol: 'adscrito', vitals: vit('138/86', 78, 16, 36.6, 97, 74, 158), subjetivo: 'Acude a control de DM2 e HAS. Refiere poliuria leve y cefalea ocasional vespertina.', exploracion: 'Consciente, orientada, hidratada. Campos pulmonares limpios, ruidos cardiacos rítmicos. Pulsos periféricos presentes.', dx: 'E11.9 Diabetes mellitus tipo 2 sin complicaciones', plan: 'Continuar metformina. Solicitar HbA1c, perfil lipídico y EGO. Dieta 1600 kcal. Cita en 4 semanas.', status: 'firmada' },
-        { id: 'n2', tipo: 'Nota de evolución', fecha: '2026-11-03T08:20:00', autorId: 'u3', autor: 'Sofía Torres', autorRol: 'mip', vitals: vit('132/84', 74, 16, 36.5, 98, 73, 158), subjetivo: 'Paciente refiere mejoría de la cefalea, apego parcial a dieta.', exploracion: 'Sin cambios relevantes respecto a la exploración previa.', dx: '', plan: '', status: 'pendiente' },
+        { id: 'n1', tipo: 'Historia clínica', fecha: '2026-09-02T10:40:00', autorId: 'u1', autor: 'Dra. Laura Mendoza', autorRol: 'adscrito', autorCedula: '10234567', vitals: vit('138/86', 78, 16, 36.6, 97, 74, 158), subjetivo: 'Acude a control de DM2 e HAS. Refiere poliuria leve y cefalea ocasional vespertina.', exploracion: 'Consciente, orientada, hidratada. Campos pulmonares limpios, ruidos cardiacos rítmicos. Pulsos periféricos presentes.', dx: 'E11.9 Diabetes mellitus tipo 2 sin complicaciones', plan: 'Continuar metformina. Solicitar HbA1c, perfil lipídico y EGO. Dieta 1600 kcal. Cita en 4 semanas.', status: 'firmada' },
+        { id: 'n2', tipo: 'Nota de evolución', fecha: '2026-11-03T08:20:00', autorId: 'u3', autor: 'Sofía Torres', autorRol: 'mip', autorCedula: null, vitals: vit('132/84', 74, 16, 36.5, 98, 73, 158), subjetivo: 'Paciente refiere mejoría de la cefalea, apego parcial a dieta.', exploracion: 'Sin cambios relevantes respecto a la exploración previa.', dx: '', plan: '', status: 'pendiente' },
       ],
     },
     {
@@ -50,7 +63,7 @@ export async function seedDb() {
       createdAt: '2026-10-11T12:05:00', createdBy: 'Carmen López',
       antecedentes: { tipoSangre: 'A+', alergias: 'Negadas', cronicos: 'Asma intermitente desde la infancia', quirurgicos: 'Negados', heredofamiliares: 'Padre con asma', medicamentos: 'Salbutamol inhalado PRN' },
       notes: [
-        { id: 'n3', tipo: 'Nota de urgencias', fecha: '2026-10-11T13:30:00', autorId: 'u2', autor: 'Dr. Andrés Ruiz', autorRol: 'residente', vitals: vit('124/78', 102, 24, 37.1, 92, 82, 175), subjetivo: 'Disnea de 6 horas de evolución tras exposición a polvo. Tos seca.', exploracion: 'Sibilancias espiratorias bilaterales, uso leve de músculos accesorios.', dx: 'J45.9 Asma, no especificada', plan: 'Nebulización con salbutamol + bromuro de ipratropio x3. Prednisona 40 mg VO x5 días. Revaloración en 1 h.', status: 'firmada' },
+        { id: 'n3', tipo: 'Nota de urgencias', fecha: '2026-10-11T13:30:00', autorId: 'u2', autor: 'Dr. Andrés Ruiz', autorRol: 'residente', autorCedula: '11345678', vitals: vit('124/78', 102, 24, 37.1, 92, 82, 175), subjetivo: 'Disnea de 6 horas de evolución tras exposición a polvo. Tos seca.', exploracion: 'Sibilancias espiratorias bilaterales, uso leve de músculos accesorios.', dx: 'J45.9 Asma, no especificada', plan: 'Nebulización con salbutamol + bromuro de ipratropio x3. Prednisona 40 mg VO x5 días. Revaloración en 1 h.', status: 'firmada' },
       ],
     },
     {
@@ -65,6 +78,6 @@ export async function seedDb() {
     seq: 3,
     users,
     patients,
-    audit: [{ ts: '2026-11-03T16:45:00', user: 'recepcion', role: 'recepcion', action: 'Alta de paciente', detail: 'EXP-2026-0003' }],
+    audit: [{ ts: '2026-11-03T16:45:00', user: 'recepcion', cedula: null, role: 'recepcion', ip: '10.20.4.17', action: 'Alta de paciente', detail: 'EXP-2026-0003' }],
   };
 }

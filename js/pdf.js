@@ -66,11 +66,11 @@ export async function exportPdf(p, user, { clinical }) {
       const v = n.vitals ?? {};
       title(`${n.tipo} - ${dt(n.fecha)}`);
       kv([
-        ['Autor', n.autor], ['Estado', STATUS[n.status]],
+        ['Autor', `${n.autor}${n.autorCedula ? ` (Céd. ${n.autorCedula})` : ''}`], ['Estado', STATUS[n.status]],
         ['Signos vitales', `TA ${v.ta || '-'} mmHg | FC ${v.fc || '-'} lpm | FR ${v.fr || '-'} rpm | Temp ${v.temp || '-'} °C | SpO2 ${v.sat || '-'} % | Peso ${v.peso || '-'} kg | Talla ${v.talla || '-'} cm`],
         ['Padecimiento / subjetivo', n.subjetivo], ['Exploración física', n.exploracion],
         ['Diagnóstico (CIE-10)', n.dx], ['Plan terapéutico', n.plan],
-        ...(n.cofirma ? [['Co-firma', `${n.cofirma.by} - ${dt(n.cofirma.at)}`]] : []),
+        ...(n.cofirma ? [['Co-firma', `${n.cofirma.by}${n.cofirma.cedula ? ` (Céd. ${n.cofirma.cedula})` : ''} - ${dt(n.cofirma.at)}`]] : []),
         ...(n.rechazo ? [['Motivo de rechazo', `${n.rechazo.motivo} (${n.rechazo.by})`]] : []),
         ...(n.hash ? [['Sello SHA-256', n.hash]] : []),
       ]);

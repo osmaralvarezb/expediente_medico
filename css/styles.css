@@ -151,6 +151,7 @@ dl.kv dd { margin: 2px 0 0; }
 .note-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .note-head b { font-family: Bitter, serif; font-size: 16px; }
 .note-head small { display: block; color: var(--muted); }
+.note-head .badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .chips span { background: var(--blue-50); color: var(--blue-700); border-radius: 8px; padding: 3px 8px; font-size: 12.5px; }
 .note p { margin: 6px 0; }

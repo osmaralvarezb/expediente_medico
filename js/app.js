@@ -1,8 +1,10 @@
-import { seedDb, noteHash, CIE10 } from './data.js';
+import { seedDb, noteHash, verifyNote, findUser, CIE10 } from './data.js';
+import { validateCurp, curpBirthDate, missingNoteFields } from './validators.js';
 import { ROLES, can, noteStatusFor } from './rbac.js';
 import { exportPdf } from './pdf.js';
 
-const DB_KEY = 'ianamed-db-v1', SESSION_KEY = 'ianamed-user';
+// v2: usuarios con cédula y bitácora con cédula e IP (los datos v1 se vuelven a sembrar).
+const DB_KEY = 'ianamed-db-v2', SESSION_KEY = 'ianamed-user';
 const app = document.getElementById('app');
 
 // ---------- Estado (mock persistido en localStorage) ----------
@@ -11,9 +13,16 @@ try { db = JSON.parse(localStorage.getItem(DB_KEY)); } catch { /* datos corrupto
 if (!db?.patients) { db = await seedDb(); save(); }
 function save() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 
+// IP pública del equipo cliente para la bitácora (RF-04). shortcut: sin backend se consulta un servicio externo;
+// en producción la IP la toma el servidor de la petición HTTP y no puede falsearse desde el navegador.
+let clientIp = 'N/D';
+fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) })
+  .then(r => r.json()).then(j => { clientIp = j.ip; }).catch(() => { /* sin red: queda N/D */ });
+
 const currentUser = () => db.users.find(u => u.id === sessionStorage.getItem(SESSION_KEY));
+/** Agrega un evento a la bitácora (solo inserción): quién, cédula, rol, IP, qué y cuándo. */
 function audit(action, detail, user = currentUser()) {
-  db.audit.unshift({ ts: new Date().toISOString(), user: user?.username ?? 'desconocido', role: user?.role ?? '-', action, detail });
+  db.audit.unshift({ ts: new Date().toISOString(), user: user?.username ?? 'desconocido', cedula: user?.cedula ?? null, role: user?.role ?? '-', ip: clientIp, action, detail });
   save();
 }
 
@@ -59,6 +68,7 @@ const STATUS_BADGE = {
   pendiente: `<span class="badge warn">${I.clock} Pendiente de validación</span>`,
   rechazada: `<span class="badge danger">${I.x} Rechazada</span>`,
 };
+const IMMUTABLE_MSG = 'Al firmar, la nota queda sellada con SHA-256 y no podrá modificarse ni eliminarse (NOM-004-SSA3-2012).';
 
 // ---------- Router ----------
 const routes = [
@@ -137,14 +147,14 @@ function viewLogin() {
           <p class="sub">Acceso exclusivo para personal autorizado.</p>
           <div id="loginError"></div>
           <div class="form-grid" style="grid-template-columns:1fr">
-            <label>Usuario<input name="username" autocomplete="username" required></label>
+            <label>Cédula profesional o usuario<input name="login" autocomplete="username" inputmode="text" placeholder="Ej. 10234567" required></label>
             <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
             <button class="btn btn-primary btn-block" type="submit">Entrar</button>
           </div>
           <div class="demo-users">
-            <h3>Usuarios de demostración · contraseña Iana2026!</h3>
+            <h3>Usuarios de prueba · contraseña Iana2026!</h3>
             <div class="demo-grid">
-              ${db.users.map(u => `<button type="button" class="demo-chip" data-user="${esc(u.username)}"><div class="avatar">${initials(u.name)}</div><div><b>${esc(u.name)}</b><small>${esc(ROLES[u.role])} · ${esc(u.username)}</small></div></button>`).join('')}
+              ${db.users.map(u => `<button type="button" class="demo-chip" data-user="${esc(u.username)}"><div class="avatar">${initials(u.name)}</div><div><b>${esc(u.name)}</b><small>${esc(ROLES[u.role])} · ${u.cedula ? `cédula ${esc(u.cedula)}` : esc(u.username)}</small></div></button>`).join('')}
             </div>
           </div>
           <button type="button" class="reset-link" id="reset">Restablecer datos de demostración</button>
@@ -153,21 +163,28 @@ function viewLogin() {
     </div>`;
   const form = document.getElementById('loginForm');
   form.querySelectorAll('[data-user]').forEach(b => b.onclick = () => {
-    form.username.value = b.dataset.user;
+    const u = db.users.find(x => x.username === b.dataset.user);
+    form.login.value = u.cedula ?? u.username;
     form.password.value = 'Iana2026!';
     form.requestSubmit();
   });
   document.getElementById('reset').onclick = () => {
-    if (!confirm('¿Borrar todos los cambios y volver a los datos de demostración?')) return;
-    localStorage.removeItem(DB_KEY);
-    location.reload();
+    if (!confirm('¿Borrar pacientes y notas capturados y volver a los datos de demostración? La bitácora se conserva.')) return;
+    // La bitácora es de solo inserción: sobrevive al restablecimiento y registra el evento.
+    const keep = db.audit;
+    seedDb().then(fresh => {
+      db = fresh;
+      db.audit = keep;
+      audit('Restablecimiento de datos demo', 'Pacientes y notas', { username: 'anónimo', role: '-' });
+      location.reload();
+    });
   };
   form.onsubmit = e => {
     e.preventDefault();
-    const username = form.username.value.trim();
-    const user = db.users.find(u => u.username === username && u.password === form.password.value);
+    const login = form.login.value.trim();
+    const user = findUser(db.users, login, form.password.value);
     if (!user) {
-      audit('Inicio de sesión fallido', username, { username, role: '-' });
+      audit('Inicio de sesión fallido', login, { username: login, role: '-' });
       document.getElementById('loginError').innerHTML = `<div class="error" role="alert">Usuario o contraseña incorrectos.</div>`;
       return;
     }
@@ -248,7 +265,7 @@ function viewPatientForm(user, id) {
           <label>Apellido materno <span class="opt">(opcional)</span><input name="apellidoMaterno" maxlength="40"></label>
           <label>Fecha de nacimiento<input name="fechaNacimiento" type="date" required min="1900-01-01" max="${new Date().toISOString().slice(0, 10)}"></label>
           <label>Sexo<select name="sexo" required><option value="">Selecciona…</option><option>Femenino</option><option>Masculino</option><option>Otro</option></select></label>
-          <label>CURP<input name="curp" required pattern="[A-Za-z]{4}[0-9]{6}[HMhm][A-Za-z]{5}[A-Za-z0-9][0-9]" maxlength="18" placeholder="18 caracteres" style="text-transform:uppercase"></label>
+          <label>CURP<input name="curp" required pattern="[A-Za-z]{4}[0-9]{6}[HMhm][A-Za-z]{5}[A-Za-z0-9][0-9]" maxlength="18" placeholder="18 caracteres" style="text-transform:uppercase" autocomplete="off"></label>
         </div>
       </fieldset>
       <fieldset>
@@ -274,12 +291,24 @@ function viewPatientForm(user, id) {
     </form>`);
   const form = document.getElementById('patientForm');
   if (p) for (const el of form.elements) if (el.name && p[el.name] != null) el.value = p[el.name];
+  // Sugerir la fecha de nacimiento a partir de una CURP válida.
+  form.curp.addEventListener('change', () => {
+    if (validateCurp(form.curp.value).ok && !form.fechaNacimiento.value) form.fechaNacimiento.value = curpBirthDate(form.curp.value);
+  });
   form.onsubmit = e => {
     e.preventDefault();
     if (!form.reportValidity()) return;
     const f = Object.fromEntries(new FormData(form));
     for (const k in f) f[k] = f[k].trim();
     f.curp = f.curp.toUpperCase();
+    const curpCheck = validateCurp(f.curp);
+    const formError = msg => { document.getElementById('formError').innerHTML = `<div class="error" role="alert">${esc(msg)}</div>`; };
+    if (!curpCheck.ok) { formError(curpCheck.error); form.curp.focus(); return; }
+    if (curpBirthDate(f.curp) !== f.fechaNacimiento) {
+      formError(`La fecha de nacimiento no coincide con la CURP (${fmtDate(curpBirthDate(f.curp))}).`);
+      form.fechaNacimiento.focus();
+      return;
+    }
     if (db.patients.some(x => x.curp === f.curp && x !== p)) {
       document.getElementById('formError').innerHTML = `<div class="error" role="alert">Ya existe un expediente con la CURP ${esc(f.curp)}.</div>`;
       form.curp.focus();
@@ -344,8 +373,8 @@ function viewRecord(user, id, quiet) {
   const noteCard = n => `
     <article class="note ${n.status}">
       <div class="note-head">
-        <div><b>${esc(n.tipo)}</b><small>${fmtDateTime(n.fecha)} · ${esc(n.autor)} (${esc(ROLES[n.autorRol])})</small></div>
-        ${STATUS_BADGE[n.status]}
+        <div><b>${esc(n.tipo)}</b><small>${fmtDateTime(n.fecha)} · ${esc(n.autor)} (${esc(ROLES[n.autorRol])}${n.autorCedula ? ` · Céd. ${esc(n.autorCedula)}` : ''})</small></div>
+        <div class="badges" data-integrity="${n.id}">${STATUS_BADGE[n.status]}</div>
       </div>
       <div class="chips">
         ${[['TA', v(n).ta, 'mmHg'], ['FC', v(n).fc, 'lpm'], ['FR', v(n).fr, 'rpm'], ['Temp', v(n).temp, '°C'], ['SpO₂', v(n).sat, '%'], ['Peso', v(n).peso, 'kg'], ['Talla', v(n).talla, 'cm']]
@@ -357,7 +386,7 @@ function viewRecord(user, id, quiet) {
       ${n.plan ? `<p><strong>Plan:</strong> ${esc(n.plan)}</p>` : ''}
       ${n.rechazo ? `<p><strong>Motivo de rechazo:</strong> ${esc(n.rechazo.motivo)} <span class="muted">(${esc(n.rechazo.by)})</span></p>` : ''}
       <div class="note-foot">
-        <span>${n.hash ? `${I.shield} SHA-256 <span class="mono" title="${n.hash}">${n.hash.slice(0, 16)}…</span>${n.cofirma ? ` · Co-firmada por ${esc(n.cofirma.by)}` : ''}` : n.status === 'pendiente' ? 'Sin validez legal hasta su co-firma' : ''}</span>
+        <span>${n.hash ? `${I.shield} SHA-256 <span class="mono" title="${n.hash}">${n.hash.slice(0, 16)}…</span>${n.cofirma ? ` · Co-firmada por ${esc(n.cofirma.by)}${n.cofirma.cedula ? ` (Céd. ${esc(n.cofirma.cedula)})` : ''}` : ''}` : n.status === 'pendiente' ? 'Sin validez legal hasta su co-firma' : ''}</span>
         ${n.status === 'pendiente' && can(r, 'notes:approve') ? `<div class="actions">
           ${can(r, 'notes:reject') ? `<button class="btn btn-danger btn-sm" data-act="reject" data-note="${n.id}">${I.x} Rechazar</button>` : ''}
           <button class="btn btn-ok btn-sm" data-act="approve" data-note="${n.id}">${I.check} Validar y co-firmar</button></div>` : ''}
@@ -375,10 +404,10 @@ function viewRecord(user, id, quiet) {
         </div>
         <fieldset style="margin:18px 0 0"><legend style="font-size:15px">Signos vitales</legend>
           <div class="vitals">
-            <label>TA (mmHg)<input name="ta" placeholder="120/80" pattern="[0-9]{2,3}/[0-9]{2,3}"></label>
-            <label>FC (lpm)<input name="fc" type="number" min="20" max="250"></label>
-            <label>FR (rpm)<input name="fr" type="number" min="5" max="80"></label>
-            <label>Temp (°C)<input name="temp" type="number" step="0.1" min="30" max="45"></label>
+            <label>TA (mmHg)<input name="ta" placeholder="120/80" pattern="[0-9]{2,3}/[0-9]{2,3}" required></label>
+            <label>FC (lpm)<input name="fc" type="number" min="20" max="250" required></label>
+            <label>FR (rpm)<input name="fr" type="number" min="5" max="80" required></label>
+            <label>Temp (°C)<input name="temp" type="number" step="0.1" min="30" max="45" required></label>
             <label>SpO₂ (%)<input name="sat" type="number" min="50" max="100"></label>
             <label>Peso (kg)<input name="peso" type="number" step="0.1" min="0.5" max="350"></label>
             <label>Talla (cm)<input name="talla" type="number" min="30" max="250"></label>
@@ -386,12 +415,14 @@ function viewRecord(user, id, quiet) {
         </fieldset>
         <div class="form-grid" style="grid-template-columns:1fr;margin-top:16px">
           <label>Padecimiento actual / subjetivo<textarea name="subjetivo" required maxlength="2000"></textarea></label>
-          <label>Exploración física<textarea name="exploracion" maxlength="2000"></textarea></label>
+          <label>Exploración física<textarea name="exploracion" maxlength="2000" required></textarea></label>
           ${dxWrite ? `
-          <label>Diagnóstico (CIE-10)<input name="dx" list="cie10" maxlength="200" placeholder="Escribe código o descripción"></label>
+          <label>Diagnóstico (CIE-10)<input name="dx" list="cie10" maxlength="200" placeholder="Escribe código o descripción" required></label>
           <datalist id="cie10">${CIE10.map(([c, d]) => `<option value="${c} ${d}">`).join('')}</datalist>
-          <label>Plan terapéutico<textarea name="plan" maxlength="2000"></textarea></label>` : ''}
+          <label>Plan terapéutico<textarea name="plan" maxlength="2000" required></textarea></label>` : ''}
         </div>
+        <div id="noteError"></div>
+        ${dxWrite ? `<p class="hint">${I.lock} ${IMMUTABLE_MSG}</p>` : ''}
         <div class="form-actions" style="margin-top:18px">
           <button class="btn btn-primary" type="submit">${I.check} ${dxWrite ? 'Firmar y guardar nota' : 'Guardar como borrador para validación'}</button>
         </div>
@@ -429,6 +460,13 @@ function viewRecord(user, id, quiet) {
       <div>${clinicalBlock}</div>
     </div>`);
 
+  // Verifica el sello de cada nota firmada; si el contenido cambió fuera del sistema, lo marca y lo registra.
+  if (clinical) for (const n of p.notes) verifyNote(p.id, n).then(ok => {
+    if (ok) return;
+    document.querySelector(`[data-integrity="${n.id}"]`)?.insertAdjacentHTML('afterbegin', `<span class="badge danger">${I.alert} Integridad comprometida</span>`);
+    if (!quiet) audit('Alerta de integridad', `${p.expediente} · ${n.tipo} · sello SHA-256 no coincide`);
+  });
+
   document.getElementById('pdfBtn')?.addEventListener('click', async e => {
     const btn = e.currentTarget;
     btn.disabled = true;
@@ -457,12 +495,18 @@ function viewRecord(user, id, quiet) {
     if (!noteForm.reportValidity()) return;
     const f = Object.fromEntries([...new FormData(noteForm)].map(([k, val]) => [k, val.trim()]));
     const note = {
-      id: crypto.randomUUID(), tipo: f.tipo, fecha: new Date().toISOString(), autorId: user.id, autor: user.name, autorRol: r,
+      id: crypto.randomUUID(), tipo: f.tipo, fecha: new Date().toISOString(), autorId: user.id, autor: user.name, autorRol: r, autorCedula: user.cedula ?? null,
       vitals: { ta: f.ta, fc: f.fc, fr: f.fr, temp: f.temp, sat: f.sat, peso: f.peso, talla: f.talla },
       subjetivo: f.subjetivo, exploracion: f.exploracion,
       dx: dxWrite ? f.dx ?? '' : '', plan: dxWrite ? f.plan ?? '' : '',
       status: noteStatusFor(r),
     };
+    const missing = missingNoteFields(note, { requireDiagnosis: dxWrite });
+    if (missing.length) {
+      document.getElementById('noteError').innerHTML = `<div class="error" role="alert">Faltan campos obligatorios (NOM-004): ${missing.map(esc).join(', ')}.</div>`;
+      return;
+    }
+    if (note.status === 'firmada' && !confirm(`${IMMUTABLE_MSG}\n\n¿Firmar y guardar la nota?`)) return;
     if (note.status === 'firmada') note.hash = await noteHash(p.id, note);
     p.notes.push(note);
     audit(note.status === 'firmada' ? 'Nota firmada' : 'Nota borrador (pendiente)', `${p.expediente} · ${note.tipo}`);
@@ -476,8 +520,9 @@ function viewRecord(user, id, quiet) {
     const n = p.notes.find(x => x.id === btn.dataset.note);
     if (!n || n.status !== 'pendiente') return;
     if (btn.dataset.act === 'approve' && can(r, 'notes:approve')) {
+      if (!confirm(`${IMMUTABLE_MSG}\n\n¿Validar y co-firmar la nota?`)) return;
       n.status = 'firmada';
-      n.cofirma = { by: user.name, at: new Date().toISOString() };
+      n.cofirma = { by: user.name, cedula: user.cedula ?? null, at: new Date().toISOString() };
       n.hash = await noteHash(p.id, n);
       audit('Co-firma de nota', `${p.expediente} · ${n.tipo}`);
       toast('Nota validada y co-firmada');
@@ -497,11 +542,11 @@ function viewRecord(user, id, quiet) {
 // ---------- Administración ----------
 function viewAudit(user) {
   shell(user, `
-    <div class="page-head"><div><h1>Bitácora de auditoría</h1><p>Trazabilidad de accesos y operaciones. Sin contenido clínico.</p></div></div>
+    <div class="page-head"><div><h1>Bitácora de auditoría</h1><p>Trazabilidad de accesos y operaciones (NOM-024): usuario, cédula, IP, fecha y hora. Solo inserción, sin contenido clínico.</p></div></div>
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Rol</th><th>Acción</th><th>Referencia</th></tr></thead>
-      <tbody>${db.audit.map(e => `<tr><td class="muted nowrap">${fmtDateTime(e.ts)}</td><td class="mono">${esc(e.user)}</td><td>${esc(ROLES[e.role] ?? e.role)}</td>
-        <td><span class="badge ${/fallido|denegado|Rechazo/.test(e.action) ? 'danger' : 'lav'}">${esc(e.action)}</span></td><td class="mono">${esc(e.detail)}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Cédula</th><th>Rol</th><th>IP</th><th>Acción</th><th>Referencia</th></tr></thead>
+      <tbody>${db.audit.map(e => `<tr><td class="muted nowrap">${fmtDateTime(e.ts)}</td><td class="mono">${esc(e.user)}</td><td class="mono">${esc(e.cedula) || '<span class="muted">-</span>'}</td><td>${esc(ROLES[e.role] ?? e.role)}</td>
+        <td class="mono nowrap">${esc(e.ip ?? 'N/D')}</td><td><span class="badge ${/fallido|denegado|Rechazo|integridad|Restablecimiento/.test(e.action) ? 'danger' : 'lav'}">${esc(e.action)}</span></td><td class="mono">${esc(e.detail)}</td></tr>`).join('')}</tbody>
     </table></div></div>`);
 }
 
@@ -509,9 +554,9 @@ function viewUsers(user) {
   shell(user, `
     <div class="page-head"><div><h1>Usuarios y roles</h1><p>Cuentas del personal autorizado (datos de demostración).</p></div></div>
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Usuario</th><th>Cuenta</th><th>Rol</th><th>Área</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Usuario</th><th>Cuenta</th><th>Cédula profesional</th><th>Rol</th><th>Área</th><th>Estado</th></tr></thead>
       <tbody>${db.users.map(u => `<tr><td><div class="person"><div class="avatar">${initials(u.name)}</div><b>${esc(u.name)}</b></div></td>
-        <td class="mono">${esc(u.username)}</td><td><span class="badge lav">${esc(ROLES[u.role])}</span></td><td>${esc(u.area)}</td><td><span class="badge ok">Activo</span></td></tr>`).join('')}</tbody>
+        <td class="mono">${esc(u.username)}</td><td class="mono">${esc(u.cedula) || '<span class="muted">No aplica</span>'}</td><td><span class="badge lav">${esc(ROLES[u.role])}</span></td><td>${esc(u.area)}</td><td><span class="badge ok">Activo</span></td></tr>`).join('')}</tbody>
     </table></div></div>`);
 }
 
