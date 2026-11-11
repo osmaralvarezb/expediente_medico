@@ -197,6 +197,7 @@ await tc('CP-16', 'CU-03', 'Adscrita co-firma la nota pendiente; queda sellada c
 await tc('CP-17', 'CU-03', 'Residente puede co-firmar pero no rechazar', async page => {
   await login(page, '11345678');
   await page.click('text=María Guadalupe Hernández Soto');
+  await page.waitForSelector('.note'); // count() no espera al render del expediente
   assert.equal(await page.locator('button[data-act=approve]').count(), 1);
   assert.equal(await page.locator('button[data-act=reject]').count(), 0);
 });

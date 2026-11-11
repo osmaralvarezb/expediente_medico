@@ -12,7 +12,7 @@ const PERMS = {
   residente: ['patients:read', 'patients:create', 'patients:update', 'clinical:read', 'clinical:write', 'history:write', 'diagnosis:write', 'notes:sign', 'notes:approve', 'pdf:clinical'],
   mip: ['patients:read', 'clinical:read', 'clinical:write'],
   recepcion: ['patients:read', 'patients:create', 'patients:update', 'pdf:demographic'],
-  admin: ['audit:read', 'users:read'],
+  admin: ['audit:read', 'users:read', 'users:manage'],
 };
 
 export const can = (role, perm) => PERMS[role]?.includes(perm) ?? false;

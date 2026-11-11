@@ -27,6 +27,11 @@ await test('UT-11', 'Login con nombre de usuario (personal sin cédula)', () => 
 await test('UT-12', 'Contraseña incorrecta no autentica', () => assert.equal(findUser(db.users, '10234567', 'otra'), null));
 await test('UT-13', 'Cédula inexistente no autentica', () => assert.equal(findUser(db.users, '99999999', 'Iana2026!'), null));
 await test('UT-14', 'Cédula vacía no coincide con usuarios sin cédula', () => assert.equal(findUser(db.users, '', 'Iana2026!'), null));
+await test('UT-14b', 'Usuario dado de baja no autentica', () => {
+  const baja = db.users.map(u => (u.username === 'dr.ruiz' ? { ...u, active: false } : u));
+  assert.equal(findUser(baja, '11345678', 'Iana2026!'), null);
+  assert.equal(findUser(baja, 'dr.ruiz', 'Iana2026!'), null);
+});
 
 // ---- Campos obligatorios de nota (CU-03, NOM-004) ----
 const full = { vitals: { ta: '120/80', fc: '70', fr: '16', temp: '36.5' }, subjetivo: 'Dolor', exploracion: 'Normal', dx: 'I10 Hipertensión', plan: 'Control' };

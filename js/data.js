@@ -35,10 +35,13 @@ const users = [
   { id: 'u5', username: 'admin', cedula: null, password: 'Iana2026!', name: 'Jorge Salas', role: 'admin', area: 'Tecnologías de la Información' },
 ];
 
-/** Busca al usuario por cédula profesional o por nombre de usuario y valida la contraseña. */
+/** Usuarios sin campo `active` (datos sembrados) cuentan como activos. */
+export const isActive = u => u.active !== false;
+
+/** Busca al usuario activo por cédula profesional o por nombre de usuario y valida la contraseña. */
 export function findUser(list, login, password) {
   const key = String(login ?? '').trim().toLowerCase();
-  return list.find(u => (u.username === key || (u.cedula && u.cedula === key)) && u.password === password) ?? null;
+  return list.find(u => (u.username === key || (u.cedula && u.cedula === key)) && u.password === password && isActive(u)) ?? null;
 }
 
 const vit = (ta, fc, fr, temp, sat, peso, talla) => ({ ta, fc, fr, temp, sat, peso, talla });

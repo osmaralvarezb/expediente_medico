@@ -1,4 +1,4 @@
-import { seedDb, noteHash, verifyNote, findUser, CIE10 } from './data.js';
+import { seedDb, noteHash, verifyNote, findUser, isActive, CIE10 } from './data.js';
 import { validateCurp, curpBirthDate, missingNoteFields } from './validators.js';
 import { ROLES, can, noteStatusFor } from './rbac.js';
 import { exportPdf } from './pdf.js';
@@ -19,7 +19,8 @@ let clientIp = 'N/D';
 fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(4000) })
   .then(r => r.json()).then(j => { clientIp = j.ip; }).catch(() => { /* sin red: queda N/D */ });
 
-const currentUser = () => db.users.find(u => u.id === sessionStorage.getItem(SESSION_KEY));
+// Una baja cierra también la sesión que el usuario tenga abierta.
+const currentUser = () => db.users.find(u => u.id === sessionStorage.getItem(SESSION_KEY) && isActive(u));
 /** Agrega un evento a la bitácora (solo inserción): quién, cédula, rol, IP, qué y cuándo. */
 function audit(action, detail, user = currentUser()) {
   db.audit.unshift({ ts: new Date().toISOString(), user: user?.username ?? 'desconocido', cedula: user?.cedula ?? null, role: user?.role ?? '-', ip: clientIp, action, detail });
@@ -154,7 +155,7 @@ function viewLogin() {
           <div class="demo-users">
             <h3>Usuarios de prueba · contraseña Iana2026!</h3>
             <div class="demo-grid">
-              ${db.users.map(u => `<button type="button" class="demo-chip" data-user="${esc(u.username)}"><div class="avatar">${initials(u.name)}</div><div><b>${esc(u.name)}</b><small>${esc(ROLES[u.role])} · ${u.cedula ? `cédula ${esc(u.cedula)}` : esc(u.username)}</small></div></button>`).join('')}
+              ${db.users.filter(isActive).map(u => `<button type="button" class="demo-chip" data-user="${esc(u.username)}"><div class="avatar">${initials(u.name)}</div><div><b>${esc(u.name)}</b><small>${esc(ROLES[u.role])} · ${u.cedula ? `cédula ${esc(u.cedula)}` : esc(u.username)}</small></div></button>`).join('')}
             </div>
           </div>
           <button type="button" class="reset-link" id="reset">Restablecer datos de demostración</button>
@@ -551,13 +552,66 @@ function viewAudit(user) {
 }
 
 function viewUsers(user) {
+  const manage = can(user.role, 'users:manage');
   shell(user, `
-    <div class="page-head"><div><h1>Usuarios y roles</h1><p>Cuentas del personal autorizado (datos de demostración).</p></div></div>
+    <div class="page-head"><div><h1>Usuarios y roles</h1><p>Cuentas del personal autorizado. La baja revoca el acceso sin borrar su historial.</p></div></div>
+    ${manage ? `
+    <details class="card new-note">
+      <summary class="btn btn-primary">${I.userPlus} Alta de usuario</summary>
+      <form id="userForm">
+        <div id="userError"></div>
+        <div class="form-grid">
+          <label>Nombre completo<input name="name" required maxlength="80" placeholder="Ej. Dra. Laura Mendoza"></label>
+          <label>Usuario<input name="username" required pattern="[a-z0-9._]{3,30}" maxlength="30" placeholder="minúsculas, números, . o _" autocomplete="off"></label>
+          <label>Contraseña inicial<input name="password" type="password" required minlength="8" maxlength="64" autocomplete="new-password"></label>
+          <label>Rol<select name="role" required><option value="">Selecciona…</option>${Object.entries(ROLES).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></label>
+          <label>Área / servicio<input name="area" required maxlength="80"></label>
+          <label>Cédula profesional <span class="opt">(médicos con cédula)</span><input name="cedula" pattern="[0-9]{7,8}" maxlength="8" inputmode="numeric" placeholder="7 u 8 dígitos"></label>
+        </div>
+        <div class="form-actions" style="margin-top:18px"><button class="btn btn-primary" type="submit">${I.check} Crear usuario</button></div>
+      </form>
+    </details>` : ''}
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>Usuario</th><th>Cuenta</th><th>Cédula profesional</th><th>Rol</th><th>Área</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Usuario</th><th>Cuenta</th><th>Cédula profesional</th><th>Rol</th><th>Área</th><th>Estado</th>${manage ? '<th></th>' : ''}</tr></thead>
       <tbody>${db.users.map(u => `<tr><td><div class="person"><div class="avatar">${initials(u.name)}</div><b>${esc(u.name)}</b></div></td>
-        <td class="mono">${esc(u.username)}</td><td class="mono">${esc(u.cedula) || '<span class="muted">No aplica</span>'}</td><td><span class="badge lav">${esc(ROLES[u.role])}</span></td><td>${esc(u.area)}</td><td><span class="badge ok">Activo</span></td></tr>`).join('')}</tbody>
+        <td class="mono">${esc(u.username)}</td><td class="mono">${esc(u.cedula) || '<span class="muted">No aplica</span>'}</td><td><span class="badge lav">${esc(ROLES[u.role])}</span></td><td>${esc(u.area)}</td>
+        <td>${isActive(u) ? '<span class="badge ok">Activo</span>' : `<span class="badge danger">Baja</span>`}</td>
+        ${manage ? `<td>${u.id === user.id ? '<span class="muted">Tu cuenta</span>'
+          : isActive(u) ? `<button class="btn btn-danger btn-sm" data-baja="${u.id}">${I.x} Dar de baja</button>`
+          : `<button class="btn btn-ghost btn-sm" data-alta="${u.id}">Reactivar</button>`}</td>` : ''}</tr>`).join('')}</tbody>
     </table></div></div>`);
+  if (!manage) return;
+
+  const form = document.getElementById('userForm');
+  form.onsubmit = e => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    const f = Object.fromEntries([...new FormData(form)].map(([k, v]) => [k, k === 'password' ? v : v.trim()]));
+    if (!ROLES[f.role]) return;
+    f.cedula = f.cedula || null;
+    const dup = db.users.find(u => u.username === f.username || (f.cedula && u.cedula === f.cedula));
+    if (dup) {
+      const what = dup.username === f.username ? `El usuario ${f.username}` : `La cédula ${f.cedula}`;
+      document.getElementById('userError').innerHTML = `<div class="error" role="alert">${esc(what)} ya está en uso.</div>`;
+      return;
+    }
+    db.users.push({ id: crypto.randomUUID(), ...f, active: true });
+    audit('Alta de usuario', `${f.username} (${ROLES[f.role]})`);
+    toast(`Usuario ${f.username} creado`);
+    render({ quiet: true });
+  };
+
+  app.querySelector('tbody').onclick = e => {
+    const btn = e.target.closest('[data-baja],[data-alta]');
+    const u = btn && db.users.find(x => x.id === (btn.dataset.baja ?? btn.dataset.alta));
+    if (!u || u.id === user.id) return;
+    const baja = 'baja' in btn.dataset;
+    if (baja && !confirm(`¿Dar de baja a ${u.name}? Ya no podrá iniciar sesión.`)) return;
+    u.active = !baja;
+    audit(baja ? 'Baja de usuario' : 'Reactivación de usuario', u.username);
+    toast(baja ? `${u.name} dado de baja` : `${u.name} reactivado`);
+    render({ quiet: true });
+  };
 }
 
 render();

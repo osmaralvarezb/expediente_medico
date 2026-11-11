@@ -9,6 +9,8 @@ for (const r of ['adscrito', 'residente', 'mip']) assert.equal(can(r, 'clinical:
 assert.equal(can('admin', 'clinical:read'), false, 'Admin TI: cero acceso clínico');
 assert.equal(can('admin', 'patients:read'), false, 'Admin TI no ve pacientes');
 assert.equal(can('admin', 'audit:read'), true);
+assert.equal(can('admin', 'users:manage'), true, 'Admin TI da de alta y baja usuarios');
+for (const r of ['adscrito', 'residente', 'mip', 'recepcion']) assert.equal(can(r, 'users:manage'), false, `${r} no gestiona usuarios`);
 assert.equal(can('mip', 'diagnosis:write'), false, 'MIP no captura diagnóstico');
 assert.equal(can('residente', 'notes:reject'), false, 'Residente no revoca notas');
 assert.equal(can('adscrito', 'notes:reject'), true);

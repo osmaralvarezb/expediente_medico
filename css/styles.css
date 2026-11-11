@@ -101,6 +101,7 @@ tbody tr.clickable:hover { background: var(--lav-50); }
 tbody tr:last-child td { border-bottom: 0; }
 .person { display: flex; align-items: center; gap: 12px; }
 .person a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.person b, .person a { white-space: nowrap; }
 .person small { display: block; color: var(--muted); }
 .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
 .muted { color: var(--muted); }
