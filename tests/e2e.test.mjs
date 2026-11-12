@@ -37,11 +37,17 @@ async function login(page, who, pass = PASS) {
   await page.click('#loginForm button[type=submit]');
 }
 const auditLog = page => page.evaluate(() => JSON.parse(localStorage.getItem('ianamed-db-v2')).audit);
-async function fillNote(page, { dx = true } = {}) {
+async function fillVitals(page) {
   await page.fill('[name=ta]', '130/85'); await page.fill('[name=fc]', '80'); await page.fill('[name=fr]', '18'); await page.fill('[name=temp]', '36.7');
-  await page.fill('[name=subjetivo]', 'Cefalea frontal de 2 días.');
-  await page.fill('[name=exploracion]', 'Neurológico sin focalización.');
-  if (dx) { await page.fill('[name=dx]', 'I10 Hipertensión esencial (primaria)'); await page.fill('[name=plan]', 'Ajustar losartán a 100 mg.'); }
+}
+// Signos vitales + texto en el editor (Enter = salto de línea, nunca envía).
+async function fillNote(page, { text = true } = {}) {
+  await fillVitals(page);
+  if (!text) return;
+  await page.click('#noteForm .rte-area');
+  await page.keyboard.type('Cefalea frontal de 2 días.');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Dx: I10 Hipertensión esencial. Plan: ajustar losartán a 100 mg.');
 }
 async function newPatient(page, curp, fecha) {
   await page.goto(BASE + '#/pacientes/nuevo');
@@ -148,14 +154,14 @@ await tc('CP-11', 'CU-02', 'Fecha de nacimiento distinta a la de la CURP se rech
 });
 
 // ---------- CU-03 Registro de nota ----------
-await tc('CP-12', 'CU-03', 'Nota de médico sin diagnóstico ni plan no se guarda', async page => {
+await tc('CP-12', 'CU-03', 'Nota con el editor vacío no se guarda', async page => {
   await login(page, '10234567');
   await page.click('text=Ana Sofía Castillo Vega');
-  await fillNote(page, { dx: false });
+  await fillNote(page, { text: false });
   await page.click('#noteForm button[type=submit]');
   await page.waitForTimeout(250);
   assert.equal(await page.locator('article.note').count(), 0);
-  assert.equal(await page.$eval('[name=dx]', el => el.validity.valueMissing), true);
+  assert.match(await page.textContent('#noteError'), /Contenido de la nota/);
 });
 await tc('CP-13', 'CU-03', 'Nota completa: advierte inmutabilidad, se firma con SHA-256 y no ofrece editar/eliminar', async page => {
   await login(page, '10234567');
@@ -180,8 +186,10 @@ await tc('CP-14', 'CU-03', 'Si el médico cancela la advertencia, la nota no se 
 await tc('CP-15', 'CU-03', 'Nota de MIP queda pendiente y no pide diagnóstico ni plan', async page => {
   await login(page, 'mip.torres');
   await page.click('text=Ana Sofía Castillo Vega');
+  await page.waitForSelector('#noteForm'); // count() no espera al render del expediente
   assert.equal(await page.locator('[name=dx]').count(), 0);
-  await fillNote(page, { dx: false });
+  assert.equal(await page.locator('#noteForm .rte-area').count(), 1);
+  await fillNote(page);
   await page.click('#noteForm button[type=submit]');
   await page.waitForSelector('article.note.pendiente');
   assert.match(await page.textContent('article.note'), /Sin validez legal/);
@@ -245,6 +253,33 @@ await tc('CP-21', 'RNF-02', 'Vista móvil (390 px) sin desplazamiento horizontal
   await page.click('text=María Guadalupe Hernández Soto');
   await page.waitForSelector('article.note');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390);
+});
+await tc('CP-22', 'CU-03', 'Enter solo salta de línea; negritas y viñetas se guardan; la nota se envía únicamente con clic', async page => {
+  await login(page, '10234567');
+  await page.click('text=Ana Sofía Castillo Vega');
+  await fillVitals(page);
+  await page.press('[name=temp]', 'Enter');                       // Enter en un signo vital: no envía
+  await page.click('#noteForm .rte-area');
+  await page.click('#noteForm [data-cmd=bold]');
+  await page.keyboard.type('Diagnóstico:');
+  await page.click('#noteForm [data-cmd=bold]');
+  await page.keyboard.type(' faringitis aguda');
+  await page.keyboard.press('Enter');                              // Enter en el editor: salto de línea
+  await page.click('#noteForm [data-cmd=insertUnorderedList]');
+  await page.keyboard.type('Paracetamol 500 mg c/8 h');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Reposo 3 días');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('article.note').count(), 0, 'Ningún Enter debe guardar la nota');
+  assert.equal(page.dialogs.length, 0, 'Ningún Enter debe abrir la confirmación de firma');
+  await page.click('#noteForm button[type=submit]');
+  await page.waitForSelector('article.note.firmada');
+  const body = await page.innerHTML('article.note .note-body');
+  assert.match(body, /<b>Diagnóstico:<\/b>/);
+  assert.match(body, /<ul><li>Paracetamol 500 mg c\/8 h<\/li><li>Reposo 3 días<\/li>/);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ianamed-db-v2')).patients.find(p => p.id === 'p3').notes[0]);
+  assert.ok(saved.hash && saved.contenido.includes('<b>Diagnóstico:</b>'));
 });
 
 await browser.close();

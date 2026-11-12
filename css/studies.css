@@ -1,0 +1,56 @@
+/* Estilos del módulo de estudios. Solo clases propias: los componentes globales (.card, .btn, .badge, tablas) viven en styles.css. */
+
+/* ---------- Aviso "listo para recoger" ---------- */
+.notices { display: grid; gap: 10px; margin-top: 18px; }
+.notice { display: flex; gap: 12px; align-items: flex-start; background: var(--ok-bg); border: 1px solid #bfe6d1; border-left: 4px solid var(--ok); border-radius: 12px; padding: 12px 16px; }
+.notice svg { color: var(--ok); flex: none; margin-top: 2px; }
+.notice span { display: block; color: var(--muted); font-size: 13px; }
+
+/* ---------- Solicitud con varios estudios ---------- */
+.study-pick { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0; grid-column: 1 / -1; min-inline-size: 0; /* un fieldset no se encoge por debajo de su contenido */ }
+.study-pick legend { font: 600 13px Inter, sans-serif; padding: 0 6px; margin: 0; }
+.study-pick .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 6px 14px; }
+label.check { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+label.check input { width: auto; }
+
+/* ---------- Órdenes y estudios en el expediente ---------- */
+.order { border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+.order + .order { margin-top: 14px; }
+.order-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.order-head small { display: block; color: var(--muted); }
+.order-head .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.study { border: 1px solid var(--line); border-left: 4px solid var(--blue-300); border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+.study.solicitado { border-left-color: var(--lav-500); }
+.study.en_proceso { border-left-color: var(--blue-500); }
+.study.listo { border-left-color: var(--ok); }
+.study.entregado { border-left-color: var(--line); opacity: .75; }
+.study.cancelado { border-left-color: var(--danger); opacity: .75; }
+.study-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.study-head small { display: block; color: var(--muted); }
+.study-head > div:last-child { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+.study p { margin: 8px 0; }
+.study .pickup { color: var(--ok); font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.study .actions { display: flex; gap: 6px; margin-top: 8px; }
+
+.code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; font-weight: 600; background: var(--lav-100); color: var(--lav-700); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
+
+/* ---------- Tablas de resultados y de captura ---------- */
+table.results, table.capture { margin-top: 8px; }
+table.results td, table.results th, table.capture td, table.capture th { padding: 6px 8px; }
+table.results tr.out td { font-weight: 600; }
+table.capture input, table.capture select { padding: 6px 8px; }
+td.flag { width: 90px; }
+/* Las tablas de resultados se desplazan dentro de su tarjeta en pantallas angostas. */
+.record-grid > * { min-width: 0; }
+table.results { display: block; overflow-x: auto; }
+
+/* ---------- Captura por código (laboratorio / gabinete) ---------- */
+.code-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+.code-form label { flex: 1; min-width: 220px; }
+.code-form input { font-size: 16px; letter-spacing: .04em; text-transform: uppercase; }
+.code-form #codeError { flex-basis: 100%; }
+#capture { margin-bottom: 18px; }
+#captureForm { display: grid; gap: 12px; }
+#captureForm h2 { margin-bottom: 0; }
+#captureForm .table-wrap, #captureForm table { overflow-x: auto; }

@@ -1,7 +1,9 @@
+import { noteHtmlToText } from './rich-text.js';
+
 const LAV = [161, 147, 201], BLUE = [63, 127, 196], INK = [31, 27, 46], SOFT = [246, 243, 252], LINE = [231, 227, 241];
 
 // Reescala el logo a 240 px para que el PDF no pese ~500 KB.
-const logo = new Promise(res => {
+export const logo = new Promise(res => {
   const img = new Image();
   img.onload = () => {
     const c = Object.assign(document.createElement('canvas'), { width: 240, height: Math.round(240 * img.height / img.width) });
@@ -68,8 +70,10 @@ export async function exportPdf(p, user, { clinical }) {
       kv([
         ['Autor', `${n.autor}${n.autorCedula ? ` (Céd. ${n.autorCedula})` : ''}`], ['Estado', STATUS[n.status]],
         ['Signos vitales', `TA ${v.ta || '-'} mmHg | FC ${v.fc || '-'} lpm | FR ${v.fr || '-'} rpm | Temp ${v.temp || '-'} °C | SpO2 ${v.sat || '-'} % | Peso ${v.peso || '-'} kg | Talla ${v.talla || '-'} cm`],
-        ['Padecimiento / subjetivo', n.subjetivo], ['Exploración física', n.exploracion],
-        ['Diagnóstico (CIE-10)', n.dx], ['Plan terapéutico', n.plan],
+        // Notas nuevas: texto del editor (viñetas como "•"); notas anteriores: campos separados.
+        ...(n.contenido !== undefined
+          ? [['Nota', noteHtmlToText(n.contenido)]]
+          : [['Padecimiento / subjetivo', n.subjetivo], ['Exploración física', n.exploracion], ['Diagnóstico (CIE-10)', n.dx], ['Plan terapéutico', n.plan]]),
         ...(n.cofirma ? [['Co-firma', `${n.cofirma.by}${n.cofirma.cedula ? ` (Céd. ${n.cofirma.cedula})` : ''} - ${dt(n.cofirma.at)}`]] : []),
         ...(n.rechazo ? [['Motivo de rechazo', `${n.rechazo.motivo} (${n.rechazo.by})`]] : []),
         ...(n.hash ? [['Sello SHA-256', n.hash]] : []),

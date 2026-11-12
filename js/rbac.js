@@ -5,14 +5,20 @@ export const ROLES = {
   mip: 'Interno / Pasante (MIP·MPSS)',
   recepcion: 'Recepción',
   admin: 'Administrador TI',
+  // QFB / Químico Clínico realiza y valida los análisis; técnico y médico radiólogo toman e interpretan la imagen.
+  laboratorio: 'Laboratorio clínico (QFB)',
+  imagenologia: 'Imagenología (Radiología)',
 };
 
 const PERMS = {
-  adscrito: ['patients:read', 'patients:create', 'patients:update', 'clinical:read', 'clinical:write', 'history:write', 'diagnosis:write', 'notes:sign', 'notes:approve', 'notes:reject', 'pdf:clinical'],
-  residente: ['patients:read', 'patients:create', 'patients:update', 'clinical:read', 'clinical:write', 'history:write', 'diagnosis:write', 'notes:sign', 'notes:approve', 'pdf:clinical'],
+  adscrito: ['patients:read', 'patients:create', 'patients:update', 'clinical:read', 'clinical:write', 'history:write', 'diagnosis:write', 'notes:sign', 'notes:approve', 'notes:reject', 'pdf:clinical', 'studies:request', 'studies:deliver', 'studies:cancel'],
+  residente: ['patients:read', 'patients:create', 'patients:update', 'clinical:read', 'clinical:write', 'history:write', 'diagnosis:write', 'notes:sign', 'notes:approve', 'pdf:clinical', 'studies:request', 'studies:deliver', 'studies:cancel'],
   mip: ['patients:read', 'clinical:read', 'clinical:write'],
-  recepcion: ['patients:read', 'patients:create', 'patients:update', 'pdf:demographic'],
+  recepcion: ['patients:read', 'patients:create', 'patients:update', 'pdf:demographic', 'studies:deliver'],
   admin: ['audit:read', 'users:read', 'users:manage'],
+  // Mínimo privilegio: solo su lista de trabajo (datos de identificación + indicación), sin acceso al expediente.
+  laboratorio: ['studies:process'],
+  imagenologia: ['studies:process'],
 };
 
 export const can = (role, perm) => PERMS[role]?.includes(perm) ?? false;

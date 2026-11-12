@@ -17,4 +17,11 @@ assert.equal(can('adscrito', 'notes:reject'), true);
 assert.equal(noteStatusFor('mip'), 'pendiente', 'Notas MIP quedan pendientes de validación');
 assert.equal(noteStatusFor('residente'), 'firmada');
 assert.equal(can('desconocido', 'patients:read'), false);
-console.log('RBAC OK (15 aserciones)');
+for (const r of ['laboratorio', 'imagenologia']) {
+  assert.equal(can(r, 'studies:process'), true, `${r} procesa su lista de trabajo`);
+  for (const p of ['patients:read', 'clinical:read', 'studies:request']) assert.equal(can(r, p), false, `${r} sin ${p} (mínimo privilegio)`);
+}
+for (const r of ['adscrito', 'residente']) assert.equal(can(r, 'studies:request'), true, `${r} solicita estudios`);
+for (const r of ['mip', 'recepcion', 'admin']) assert.equal(can(r, 'studies:request'), false, `${r} no solicita estudios`);
+assert.equal(can('recepcion', 'studies:deliver'), true, 'Recepción entrega resultados');
+console.log('RBAC OK');

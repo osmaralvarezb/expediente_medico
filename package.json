@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "python -m http.server 5173",
-    "test": "node tests/rbac.test.mjs && node tests/domain.test.mjs",
+    "test": "node tests/rbac.test.mjs && node tests/domain.test.mjs && node tests/studies.test.mjs && node tests/labs.test.mjs && node tests/rich-text.test.mjs",
     "test:e2e": "node tests/e2e.test.mjs"
   },
   "version": "0.1.0",

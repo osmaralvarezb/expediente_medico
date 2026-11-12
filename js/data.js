@@ -1,4 +1,6 @@
 // Datos mock. shortcut: todo vive en localStorage del navegador; reemplazar por API + BD cifrada (AES-256-GCM) al pasar del MVP.
+import { createStudyOrder, advanceStudy } from './studies.js';
+import { validateLabResults } from './labs.js';
 
 export const CIE10 = [
   ['E11.9', 'Diabetes mellitus tipo 2 sin complicaciones'],
@@ -15,7 +17,10 @@ export const CIE10 = [
 
 /** Sello SHA-256 de una nota: cubre los datos clínicos y la autoría, no el estado de validación. */
 export async function noteHash(patientId, n) {
-  const payload = JSON.stringify([patientId, n.tipo, n.fecha, n.autorId, n.vitals, n.subjetivo, n.exploracion, n.dx, n.plan]);
+  const fields = [patientId, n.tipo, n.fecha, n.autorId, n.vitals, n.subjetivo, n.exploracion, n.dx, n.plan];
+  // El contenido del editor solo se agrega si existe: así el sello de las notas anteriores no cambia.
+  if (n.contenido !== undefined) fields.push(n.contenido);
+  const payload = JSON.stringify(fields);
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -33,7 +38,30 @@ const users = [
   { id: 'u3', username: 'mip.torres', cedula: null, password: 'Iana2026!', name: 'Sofía Torres', role: 'mip', area: 'Internado de pregrado' },
   { id: 'u4', username: 'recepcion', cedula: null, password: 'Iana2026!', name: 'Carmen López', role: 'recepcion', area: 'Admisión' },
   { id: 'u5', username: 'admin', cedula: null, password: 'Iana2026!', name: 'Jorge Salas', role: 'admin', area: 'Tecnologías de la Información' },
+  { id: 'u6', username: 'qfb.perez', cedula: '12456789', password: 'Iana2026!', name: 'QFB Mariana Pérez', role: 'laboratorio', area: 'Laboratorio clínico' },
+  { id: 'u7', username: 'dr.lara', cedula: '13567890', password: 'Iana2026!', name: 'Dr. Hugo Lara', role: 'imagenologia', area: 'Imagenología' },
 ];
+
+/**
+ * Estudios de ejemplo con sus códigos de muestra. Orden de María (p1, 3 tubos): química sanguínea y HbA1c listas
+ * (valores del formato de referencia del cliente) y perfil de lípidos en proceso para probar la captura; Rx urgente de p2.
+ */
+export function seedStudies() {
+  const [adscrita, residente, qfb] = [users[0], users[1], users[5]];
+  const o1 = createStudyOrder({ patientId: 'p1', studyCodes: ['LAB-QS', 'LAB-PL', 'LAB-HBA1C'], indicacion: 'Control de DM2 e HAS', prioridad: 'rutina' }, adscrita, { now: '2026-11-03T07:45:00', firstSeq: 1 });
+  const [qs, lipidos, hba1c] = o1.requests.map(r => advanceStudy(r, 'iniciar', qfb, {}, '2026-11-03T08:00:00'));
+  const capture = (req, values) => advanceStudy(req, 'completar', qfb, { results: validateLabResults(req.studyCode, values, 'Femenino').results }, '2026-11-03T12:30:00');
+  const o2 = createStudyOrder({ patientId: 'p2', studyCodes: ['RX-TX'], indicacion: 'Crisis asmática: descartar neumotórax o proceso neumónico', prioridad: 'urgente' }, residente, { now: '2026-10-11T13:35:00', firstSeq: 4 });
+  return {
+    sampleSeq: o2.nextSeq - 1,
+    studies: [
+      capture(qs, { glucosa: '90', bun: '24.73', urea: '53', creatinina: '0.70', acidoUrico: '5.6' }),
+      lipidos,
+      capture(hba1c, { hba1c: '5.80' }),
+      ...o2.requests,
+    ],
+  };
+}
 
 /** Usuarios sin campo `active` (datos sembrados) cuentan como activos. */
 export const isActive = u => u.active !== false;
@@ -81,6 +109,7 @@ export async function seedDb() {
     seq: 3,
     users,
     patients,
+    ...seedStudies(),
     audit: [{ ts: '2026-11-03T16:45:00', user: 'recepcion', cedula: null, role: 'recepcion', ip: '10.20.4.17', action: 'Alta de paciente', detail: 'EXP-2026-0003' }],
   };
 }

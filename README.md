@@ -16,6 +16,16 @@ Contraseña de todos: `Iana2026!`. En la pantalla de acceso también hay botones
 | `mip.torres` | Sofía Torres | MIP / MPSS | Captura notas sin diagnóstico ni plan; quedan pendientes de co-firma. |
 | `recepcion` | Carmen López | Recepción | Alta y edición de datos demográficos; ficha PDF. Sin acceso clínico. |
 | `admin` | Jorge Salas | Administrador TI | Solo bitácora y usuarios. Sin acceso a pacientes. |
+| `12456789` | QFB Mariana Pérez | Laboratorio clínico (QFB) | Lista de trabajo de laboratorio: inicia estudios, captura el resultado y los marca listos para recoger. Sin acceso al expediente. |
+| `13567890` | Dr. Hugo Lara | Imagenología (Radiología) | Igual que laboratorio, para estudios de gabinete (Rx, USG, TAC, RM, mastografía, densitometría). |
+
+**Estudios:**
+1. El médico (adscrito o residente) marca uno o varios estudios en una sola solicitud. Cada estudio recibe su código de muestra (`LAB-AAMMDD-0001`, `GAB-…`) y el botón **Etiquetas PDF** imprime una etiqueta por tubo (formato Avery 5160).
+2. Laboratorio escribe o escanea el código: la muestra queda recibida y se abre el formulario con los analitos, sus unidades y su rango de referencia (por sexo cuando aplica). Cada valor se marca en vivo como ↑ Alto o ↓ Bajo.
+3. Al guardar, el estudio queda como **"Resultados disponibles"**: no se recoge nada en laboratorio; el médico ve la tabla de resultados y descarga el **PDF de resultados** (*A / *B fuera de rango), igual que laboratorio.
+4. Imagenología sí conserva el flujo físico: al terminar, el expediente y la lista de pacientes muestran el aviso "listo para recoger" con el lugar de entrega, y Recepción o el médico lo marcan como entregado.
+
+Para probar la captura: entra como `12456789` y usa el código `LAB-261103-0002` (perfil de lípidos de María).
 
 ## Ejecutar en local
 

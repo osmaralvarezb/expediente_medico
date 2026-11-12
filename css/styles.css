@@ -157,6 +157,22 @@ dl.kv dd { margin: 2px 0 0; }
 .chips span { background: var(--blue-50); color: var(--blue-700); border-radius: 8px; padding: 3px 8px; font-size: 12.5px; }
 .note p { margin: 6px 0; }
 .note p strong { color: #3b3651; }
+.note-body { line-height: 1.55; overflow-wrap: anywhere; }
+.note-body b { color: #3b3651; }
+.note-body ul { margin: 4px 0; padding-left: 22px; }
+.note-body p { margin: 4px 0; }
+
+/* ---------- Editor de texto de la nota (negritas y viñetas) ---------- */
+.rte { display: grid; gap: 6px; }
+.rte-label { font-size: 13px; font-weight: 600; color: #3b3651; }
+.rte-toolbar { display: flex; gap: 6px; }
+.rte-btn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.rte-btn:hover { border-color: var(--lav-500); background: var(--lav-50); }
+.rte-btn[aria-pressed="true"] { background: var(--lav-100); border-color: var(--lav-500); color: var(--lav-700); }
+.rte-area { min-height: 200px; max-height: 480px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; line-height: 1.55; overflow-wrap: anywhere; }
+.rte-area:focus { outline: none; border-color: var(--lav-500); box-shadow: 0 0 0 4px var(--lav-100); }
+.rte-area ul { margin: 4px 0; padding-left: 22px; }
+.rte-area.is-empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
 .note-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 10px; font-size: 12.5px; color: var(--muted); }
 .note-foot .actions { display: flex; gap: 6px; }
 details.new-note > summary { list-style: none; cursor: pointer; }

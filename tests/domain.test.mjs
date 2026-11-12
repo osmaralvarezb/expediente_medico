@@ -34,14 +34,16 @@ await test('UT-14b', 'Usuario dado de baja no autentica', () => {
 });
 
 // ---- Campos obligatorios de nota (CU-03, NOM-004) ----
-const full = { vitals: { ta: '120/80', fc: '70', fr: '16', temp: '36.5' }, subjetivo: 'Dolor', exploracion: 'Normal', dx: 'I10 Hipertensión', plan: 'Control' };
-await test('UT-15', 'Nota completa no tiene faltantes', () => assert.deepEqual(missingNoteFields(full, { requireDiagnosis: true }), []));
-await test('UT-16', 'Nota de médico sin diagnóstico ni plan', () => assert.deepEqual(missingNoteFields({ ...full, dx: '', plan: ' ' }, { requireDiagnosis: true }), ['Diagnóstico', 'Plan terapéutico']));
-await test('UT-17', 'Nota de MIP no exige diagnóstico', () => assert.deepEqual(missingNoteFields({ ...full, dx: '', plan: '' }, { requireDiagnosis: false }), []));
-await test('UT-18', 'Nota sin signos vitales ni exploración', () => {
-  const miss = missingNoteFields({ ...full, vitals: {}, exploracion: '' }, { requireDiagnosis: true });
-  assert.equal(miss.length, 5);
-  assert.ok(miss.includes('Exploración física'));
+const full = { vitals: { ta: '120/80', fc: '70', fr: '16', temp: '36.5' }, contenido: '<b>Dx:</b> HTA<ul><li>Losartán 50 mg</li></ul>' };
+await test('UT-15', 'Nota completa no tiene faltantes', () => assert.deepEqual(missingNoteFields(full), []));
+await test('UT-16', 'Nota con el editor vacío (solo saltos o viñetas vacías) no se acepta', () => {
+  for (const contenido of ['', '<br>', '<div><br></div>', '<ul><li></li></ul>']) assert.deepEqual(missingNoteFields({ ...full, contenido }), ['Contenido de la nota']);
+});
+await test('UT-17', 'Nota de más de 8000 caracteres se rechaza', () => assert.deepEqual(missingNoteFields({ ...full, contenido: 'x'.repeat(8001) }), ['Contenido de la nota (máximo 8000 caracteres)']));
+await test('UT-18', 'Nota sin signos vitales', () => {
+  const miss = missingNoteFields({ ...full, vitals: {} });
+  assert.equal(miss.length, 4);
+  assert.ok(miss.includes('Signos vitales: TA'));
 });
 
 // ---- Sello de integridad (RNF-04) ----
@@ -51,5 +53,12 @@ await test('UT-20', 'El sello es determinista', async () => assert.equal(await n
 await test('UT-21', 'Alterar el plan de una nota firmada se detecta', async () => assert.equal(await verifyNote(p.id, { ...n, plan: 'ALTERADO' }), false));
 await test('UT-22', 'Mover la nota a otro paciente se detecta', async () => assert.equal(await verifyNote('p2', n), false));
 await test('UT-23', 'Notas pendientes (sin sello) no marcan alerta', async () => assert.equal(await verifyNote(p.id, p.notes[1]), true));
+await test('UT-24', 'El sello cubre el contenido del editor: alterarlo se detecta', async () => {
+  const nueva = { tipo: 'Nota de evolución', fecha: '2026-11-12T09:00:00', autorId: 'u1', vitals: full.vitals, contenido: full.contenido };
+  nueva.hash = await noteHash('p1', nueva);
+  assert.equal(await verifyNote('p1', nueva), true);
+  assert.equal(await verifyNote('p1', { ...nueva, contenido: '<b>Dx:</b> otro' }), false);
+});
+await test('UT-25', 'Las notas anteriores (sin contenido) conservan su mismo sello', async () => assert.equal(await noteHash(p.id, { ...n }), n.hash));
 
 console.log(`Dominio OK (${passed} pruebas)`);

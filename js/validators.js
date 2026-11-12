@@ -1,4 +1,5 @@
 // Validaciones de dominio puras (sin DOM) para poder probarlas con Node.
+import { isBlankNoteHtml, noteHtmlToText, MAX_NOTE_TEXT } from './rich-text.js';
 
 // Claves de entidad federativa válidas en la posición 12-13 de la CURP (RENAPO). NE = nacido en el extranjero.
 const ESTADOS = new Set(['AS', 'BC', 'BS', 'CC', 'CL', 'CM', 'CS', 'CH', 'DF', 'DG', 'GT', 'GR', 'HG', 'JC', 'MC', 'MN', 'MS', 'NT', 'NL', 'OC', 'PL', 'QT', 'QR', 'SP', 'SL', 'SR', 'TC', 'TS', 'TL', 'VZ', 'YN', 'ZS', 'NE']);
@@ -30,16 +31,15 @@ export function curpBirthDate(curp) {
 }
 
 /**
- * Campos obligatorios de una nota clínica (NOM-004-SSA3-2012, 6.2 nota de evolución).
- * Quien firma (adscrito/residente) además debe registrar diagnóstico y plan.
- * @returns {string[]} etiquetas de los campos faltantes
+ * Campos obligatorios de una nota clínica: signos vitales básicos y el texto libre de la nota
+ * (editor con negritas y viñetas, que sustituye a los campos separados de padecimiento, exploración, diagnóstico y plan).
+ * @returns {string[]} etiquetas de los campos faltantes o inválidos
  */
-export function missingNoteFields(note, { requireDiagnosis }) {
+export function missingNoteFields(note) {
   const v = note.vitals ?? {};
-  const req = [
-    ['Signos vitales: TA', v.ta], ['Signos vitales: FC', v.fc], ['Signos vitales: FR', v.fr], ['Signos vitales: temperatura', v.temp],
-    ['Padecimiento / subjetivo', note.subjetivo], ['Exploración física', note.exploracion],
-    ...(requireDiagnosis ? [['Diagnóstico', note.dx], ['Plan terapéutico', note.plan]] : []),
-  ];
-  return req.filter(([, val]) => !String(val ?? '').trim()).map(([label]) => label);
+  const missing = [['Signos vitales: TA', v.ta], ['Signos vitales: FC', v.fc], ['Signos vitales: FR', v.fr], ['Signos vitales: temperatura', v.temp]]
+    .filter(([, val]) => !String(val ?? '').trim()).map(([label]) => label);
+  if (isBlankNoteHtml(note.contenido)) missing.push('Contenido de la nota');
+  else if (noteHtmlToText(note.contenido).length > MAX_NOTE_TEXT) missing.push(`Contenido de la nota (máximo ${MAX_NOTE_TEXT} caracteres)`);
+  return missing;
 }

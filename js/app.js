@@ -1,4 +1,8 @@
-import { seedDb, noteHash, verifyNote, findUser, isActive, CIE10 } from './data.js';
+import { seedDb, noteHash, verifyNote, findUser, isActive } from './data.js';
+import { sanitizeNoteHtml } from './rich-text.js';
+import { noteEditorHtml, bindNoteEditor, preventEnterSubmit, readNoteEditor } from './note-editor.js';
+import { readyNotices } from './studies.js';
+import { studiesUI } from './studies-ui.js';
 import { validateCurp, curpBirthDate, missingNoteFields } from './validators.js';
 import { ROLES, can, noteStatusFor } from './rbac.js';
 import { exportPdf } from './pdf.js';
@@ -11,6 +15,15 @@ const app = document.getElementById('app');
 let db = null;
 try { db = JSON.parse(localStorage.getItem(DB_KEY)); } catch { /* datos corruptos: se re-siembran */ }
 if (!db?.patients) { db = await seedDb(); save(); }
+// Datos guardados antes del módulo de estudios: se agregan sus usuarios y estudios de ejemplo sin tocar lo capturado.
+// shortcut: los estudios demo anteriores a los códigos de muestra se reemplazan por los nuevos de ejemplo; con datos reales haría falta migrarlos.
+if (!db.studies || db.studies.some(s => !s.sampleCode)) {
+  const fresh = await seedDb();
+  db.studies = fresh.studies;
+  db.sampleSeq = fresh.sampleSeq;
+  db.users.push(...fresh.users.filter(u => !db.users.some(x => x.id === u.id)));
+  save();
+}
 function save() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 
 // IP pública del equipo cliente para la bitácora (RF-04). shortcut: sin backend se consulta un servicio externo;
@@ -62,7 +75,11 @@ const I = {
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
   heart: svg('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>'),
   back: svg('<path d="m15 18-6-6 6-6"/>'),
+  flask: svg('<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/>'),
 };
+const homeFor = role => (can(role, 'patients:read') ? '#/pacientes' : can(role, 'studies:process') ? '#/estudios' : '#/bitacora');
+// Interfaz de estudios (laboratorio / gabinete); recibe los helpers de esta app para no importar app.js.
+const S = studiesUI({ db, esc, fmtDateTime, fullName, age, I, can, shell, audit, toast, save, render });
 
 const STATUS_BADGE = {
   firmada: `<span class="badge ok">${I.check} Firmada</span>`,
@@ -79,12 +96,13 @@ const routes = [
   [/^#\/expediente\/([\w-]+)\/editar$/, 'patients:update', viewPatientForm],
   [/^#\/bitacora$/, 'audit:read', viewAudit],
   [/^#\/usuarios$/, 'users:read', viewUsers],
+  [/^#\/estudios$/, 'studies:process', user => S.viewStudies(user)],
 ];
 
 function render({ quiet = false } = {}) {
   const user = currentUser();
   if (!user) return viewLogin();
-  const home = can(user.role, 'patients:read') ? '#/pacientes' : '#/bitacora';
+  const home = homeFor(user.role);
   const route = routes.find(([re]) => re.test(location.hash));
   if (!route) { location.hash = home; return; }
   const [re, perm, view] = route;
@@ -102,6 +120,7 @@ function shell(user, content) {
     ['#/pacientes/nuevo', 'Alta de paciente', 'patients:create', I.userPlus],
     ['#/bitacora', 'Bitácora de auditoría', 'audit:read', I.log],
     ['#/usuarios', 'Usuarios y roles', 'users:read', I.shield],
+    ['#/estudios', 'Lista de trabajo', 'studies:process', I.flask],
   ].filter(([, , perm]) => can(user.role, perm));
   const h = location.hash;
   const active = href => h === href || (href === '#/pacientes' && h.startsWith('#/expediente'));
@@ -191,7 +210,7 @@ function viewLogin() {
     }
     sessionStorage.setItem(SESSION_KEY, user.id);
     audit('Inicio de sesión', '', user);
-    location.hash = can(user.role, 'patients:read') ? '#/pacientes' : '#/bitacora';
+    location.hash = homeFor(user.role);
     render();
   };
 }
@@ -229,8 +248,9 @@ function viewPatients(user) {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     rows.innerHTML = list.map(p => {
       const pend = p.notes.filter(n => n.status === 'pendiente').length;
+      const ready = readyNotices(db.studies, p.id).length;
       return `<tr class="clickable" data-id="${esc(p.id)}">
-        <td><div class="person"><div class="avatar">${initials(fullName(p))}</div><div><a href="#/expediente/${esc(p.id)}">${esc(fullName(p))}</a><small class="mono">${esc(p.curp)}</small></div></div></td>
+        <td><div class="person"><div class="avatar">${initials(fullName(p))}</div><div><a href="#/expediente/${esc(p.id)}">${esc(fullName(p))}</a>${ready ? ` <span class="badge ok">${I.check} ${ready === 1 ? 'Estudio listo' : `${ready} estudios listos`}</span>` : ''}<small class="mono">${esc(p.curp)}</small></div></div></td>
         <td><span class="badge blue">${esc(p.expediente)}</span></td>
         <td>${age(p.fechaNacimiento)} años · ${esc(p.sexo)}</td>
         <td>${esc(p.aseguradora)}</td>
@@ -381,10 +401,12 @@ function viewRecord(user, id, quiet) {
         ${[['TA', v(n).ta, 'mmHg'], ['FC', v(n).fc, 'lpm'], ['FR', v(n).fr, 'rpm'], ['Temp', v(n).temp, '°C'], ['SpO₂', v(n).sat, '%'], ['Peso', v(n).peso, 'kg'], ['Talla', v(n).talla, 'cm']]
           .filter(([, val]) => val).map(([k, val, u]) => `<span>${k} ${esc(val)} ${u}</span>`).join('')}
       </div>
-      <p><strong>Padecimiento / subjetivo:</strong> ${esc(n.subjetivo)}</p>
+      ${n.contenido !== undefined
+        ? `<div class="note-body">${sanitizeNoteHtml(n.contenido)}</div>` /* se vuelve a sanear al mostrar: el dato guardado no es de confianza */
+        : `<p><strong>Padecimiento / subjetivo:</strong> ${esc(n.subjetivo)}</p>
       ${n.exploracion ? `<p><strong>Exploración física:</strong> ${esc(n.exploracion)}</p>` : ''}
       ${n.dx ? `<p><strong>Diagnóstico:</strong> ${esc(n.dx)}</p>` : ''}
-      ${n.plan ? `<p><strong>Plan:</strong> ${esc(n.plan)}</p>` : ''}
+      ${n.plan ? `<p><strong>Plan:</strong> ${esc(n.plan)}</p>` : ''}`}
       ${n.rechazo ? `<p><strong>Motivo de rechazo:</strong> ${esc(n.rechazo.motivo)} <span class="muted">(${esc(n.rechazo.by)})</span></p>` : ''}
       <div class="note-foot">
         <span>${n.hash ? `${I.shield} SHA-256 <span class="mono" title="${n.hash}">${n.hash.slice(0, 16)}…</span>${n.cofirma ? ` · Co-firmada por ${esc(n.cofirma.by)}${n.cofirma.cedula ? ` (Céd. ${esc(n.cofirma.cedula)})` : ''}` : ''}` : n.status === 'pendiente' ? 'Sin validez legal hasta su co-firma' : ''}</span>
@@ -414,13 +436,11 @@ function viewRecord(user, id, quiet) {
             <label>Talla (cm)<input name="talla" type="number" min="30" max="250"></label>
           </div>
         </fieldset>
-        <div class="form-grid" style="grid-template-columns:1fr;margin-top:16px">
-          <label>Padecimiento actual / subjetivo<textarea name="subjetivo" required maxlength="2000"></textarea></label>
-          <label>Exploración física<textarea name="exploracion" maxlength="2000" required></textarea></label>
-          ${dxWrite ? `
-          <label>Diagnóstico (CIE-10)<input name="dx" list="cie10" maxlength="200" placeholder="Escribe código o descripción" required></label>
-          <datalist id="cie10">${CIE10.map(([c, d]) => `<option value="${c} ${d}">`).join('')}</datalist>
-          <label>Plan terapéutico<textarea name="plan" maxlength="2000" required></textarea></label>` : ''}
+        <div style="margin-top:16px">
+          ${noteEditorHtml({
+            label: 'Nota clínica',
+            placeholder: dxWrite ? 'Padecimiento actual, exploración física, diagnóstico y plan terapéutico…' : 'Padecimiento actual y exploración física…',
+          })}
         </div>
         <div id="noteError"></div>
         ${dxWrite ? `<p class="hint">${I.lock} ${IMMUTABLE_MSG}</p>` : ''}
@@ -456,10 +476,12 @@ function viewRecord(user, id, quiet) {
         ${pdfPerm ? `<button class="btn btn-lav" id="pdfBtn">${I.download} ${clinical ? 'Descargar expediente PDF' : 'Descargar ficha PDF'}</button>` : ''}
       </div>
     </div>
+    ${S.readyBanner(p)}
     <div class="record-grid">
       <div>${ficha}${clinical ? antecedentes : ''}</div>
-      <div>${clinicalBlock}</div>
+      <div>${clinicalBlock}${S.recordSection(user, p)}</div>
     </div>`);
+  S.bindRecordSection(user, p);
 
   // Verifica el sello de cada nota firmada; si el contenido cambió fuera del sistema, lo marca y lo registra.
   if (clinical) for (const n of p.notes) verifyNote(p.id, n).then(ok => {
@@ -491,18 +513,22 @@ function viewRecord(user, id, quiet) {
   };
 
   const noteForm = document.getElementById('noteForm');
+  if (noteForm) {
+    bindNoteEditor(noteForm);
+    preventEnterSubmit(noteForm); // Enter solo hace salto de línea; la nota se guarda únicamente con clic en el botón
+  }
   if (noteForm) noteForm.onsubmit = async e => {
     e.preventDefault();
+    if (!e.submitter) return; // envío implícito (sin botón): se ignora
     if (!noteForm.reportValidity()) return;
     const f = Object.fromEntries([...new FormData(noteForm)].map(([k, val]) => [k, val.trim()]));
     const note = {
       id: crypto.randomUUID(), tipo: f.tipo, fecha: new Date().toISOString(), autorId: user.id, autor: user.name, autorRol: r, autorCedula: user.cedula ?? null,
       vitals: { ta: f.ta, fc: f.fc, fr: f.fr, temp: f.temp, sat: f.sat, peso: f.peso, talla: f.talla },
-      subjetivo: f.subjetivo, exploracion: f.exploracion,
-      dx: dxWrite ? f.dx ?? '' : '', plan: dxWrite ? f.plan ?? '' : '',
+      contenido: readNoteEditor(noteForm),
       status: noteStatusFor(r),
     };
-    const missing = missingNoteFields(note, { requireDiagnosis: dxWrite });
+    const missing = missingNoteFields(note);
     if (missing.length) {
       document.getElementById('noteError').innerHTML = `<div class="error" role="alert">Faltan campos obligatorios (NOM-004): ${missing.map(esc).join(', ')}.</div>`;
       return;
