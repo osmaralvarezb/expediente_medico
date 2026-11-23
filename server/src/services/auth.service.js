@@ -12,7 +12,7 @@ export function createAuthService({ usuarios, hasher, tokens }) {
       const coincide = await hasher.verify(usuario?.hash ?? HASH_SEÑUELO, String(password ?? ''));
       // Mismo error para usuario inexistente, contraseña incorrecta o usuario dado de baja.
       if (!usuario || !usuario.activo || !coincide) throw new HttpError(401, 'Credenciales inválidas');
-      const token = tokens.firmar({ sub: usuario.id, role: usuario.role });
+      const token = tokens.firmar({ sub: usuario.id, role: usuario.role, username: usuario.username });
       return { token, usuario: { id: usuario.id, username: usuario.username, role: usuario.role } };
     },
   };

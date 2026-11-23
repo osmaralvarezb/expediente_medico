@@ -77,6 +77,31 @@ En este incremento las capas del patrón Controller-Service-Repository del plan 
 
 Al no existir servidor, la autenticación, los permisos y la bitácora se aplican en el navegador y pueden alterarse con las herramientas de desarrollador (el sello SHA-256 lo detecta en las notas). La IP se obtiene de `api.ipify.org` y muestra `N/D` si no hay red. No hay cifrado AES-256 en reposo; GitHub Pages sirve la app por HTTPS (TLS 1.2/1.3). Todo esto se atiende con el backend planeado (API + PostgreSQL + Argon2id/JWT + AES-256).
 
+## API del servidor (Sprint 1)
+
+Node.js 22+ · Express 5 · PostgreSQL 16 · Argon2id + JWT en cookie HttpOnly · bitácora NOM-024 de solo inserción.
+
+```bash
+cp .env.example .env          # llenar JWT_SECRET, SEED_PASSWORD y contraseñas
+docker compose up -d          # PostgreSQL 16 en localhost:5432
+npm install
+npm run db:migrate            # crea tablas, secuencia de expedientes y trigger de la bitácora
+npm run db:seed               # usuarios de prueba con hash Argon2id (contraseña = SEED_PASSWORD)
+npm run api                   # http://localhost:3000 (interfaz mínima y /api/*)
+npm run test:api              # unitarias, supertest e integración con PostgreSQL (PGlite, sin Docker)
+```
+
+| Método y ruta | Permiso | Respuestas |
+|---|---|---|
+| `GET /api/health` | público | 200 BD encendida · 503 apagada |
+| `POST /api/auth/login` | público | 200 + cookie · 401 credenciales inválidas · 429 sexto intento por minuto |
+| `GET /api/auth/me` · `POST /api/auth/logout` | sesión | 200 · 401 |
+| `GET /api/pacientes?q=` | `patients:read` | 200 · 401 · 403 |
+| `POST /api/pacientes` | `patients:create` | 201 con expediente · 400 CURP inválida · 409 CURP repetida |
+| `GET /api/auditoria` | `audit:read` | 200 · 401 · 403 |
+
+Capas en `server/src`: `controllers/` (HTTP), `services/` (reglas), `repositories/` (único lugar con SQL), `middleware/` (sesión, RBAC con `can()` y límite de intentos). El despliegue en Render se describe en `render.yaml`.
+
 ## Despliegue
 
 Ver [DEPLOY.md](DEPLOY.md).

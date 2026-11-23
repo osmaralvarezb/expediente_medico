@@ -55,13 +55,21 @@ CREATE TRIGGER auditoria_sin_truncate
   FOR EACH STATEMENT EXECUTE FUNCTION auditoria_inmutable();
 
 -- Usuario de la aplicación: puede insertar y leer la bitácora, nunca modificarla.
+-- Su contraseña no vive en el repositorio: migrate.js la asigna desde APP_DB_PASSWORD.
+-- Si el proveedor no permite crear roles, la app usa el usuario dueño y el trigger sigue bloqueando UPDATE/DELETE.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ianamed_app') THEN
-    CREATE ROLE ianamed_app LOGIN PASSWORD 'cambiar_en_env';
+    BEGIN
+      CREATE ROLE ianamed_app LOGIN;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Sin permiso para crear el rol ianamed_app; se omite.';
+    END;
+  END IF;
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'ianamed_app') THEN
+    GRANT SELECT, INSERT, UPDATE ON usuarios, pacientes TO ianamed_app;
+    GRANT SELECT, INSERT ON auditoria_nom024 TO ianamed_app;
+    REVOKE UPDATE, DELETE, TRUNCATE ON auditoria_nom024 FROM ianamed_app;
+    GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO ianamed_app;
   END IF;
 END $$;
-GRANT SELECT, INSERT, UPDATE ON usuarios, pacientes TO ianamed_app;
-GRANT SELECT, INSERT ON auditoria_nom024 TO ianamed_app;
-REVOKE UPDATE, DELETE, TRUNCATE ON auditoria_nom024 FROM ianamed_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO ianamed_app;

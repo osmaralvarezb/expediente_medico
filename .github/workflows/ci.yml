@@ -12,4 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+          cache: npm
+      - run: npm ci
       - run: npm test
+      # API del Sprint 1: unitarias, supertest e integración con PostgreSQL (PGlite).
+      - run: npm run test:api

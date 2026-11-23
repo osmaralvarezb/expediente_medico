@@ -15,6 +15,7 @@ const db = createDb({ connectionString: process.env.DATABASE_URL });
 const tokens = createTokenService({ secret: process.env.JWT_SECRET });
 const auditoria = createAuditoriaService({ repo: createAuditoriaRepository({ db }) });
 const app = createApp({
+  trustProxy: Number(process.env.TRUST_PROXY ?? 0),
   db,
   tokens,
   auditoria,
