@@ -11,6 +11,13 @@ try {
     await client.query(await readFile(new URL(f, dir), 'utf8'));
     console.log(`✓ ${f}`);
   }
+  // La contraseña del rol de la aplicación se toma del entorno, nunca del repositorio.
+  const appPassword = process.env.APP_DB_PASSWORD;
+  const { rowCount } = await client.query("SELECT 1 FROM pg_roles WHERE rolname = 'ianamed_app'");
+  if (appPassword && rowCount) {
+    await client.query(`ALTER ROLE ianamed_app PASSWORD ${client.escapeLiteral(appPassword)}`);
+    console.log('✓ contraseña de ianamed_app asignada desde APP_DB_PASSWORD');
+  }
 } finally {
   await client.end();
 }

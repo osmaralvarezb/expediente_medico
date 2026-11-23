@@ -14,5 +14,9 @@ export function createAuditoriaService({ repo }) {
         detalle: limpio,
       });
     },
+
+    listar(limite) {
+      return repo.listar(limite);
+    },
   };
 }

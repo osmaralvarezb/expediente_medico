@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IanaMed · API Sprint 1</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <strong>IanaMed</strong> · Incremento 1 (API en servidor)
+    <span id="salud" class="pill">verificando…</span>
+    <span id="quien"></span>
+    <button id="salir" hidden>Cerrar sesión</button>
+  </header>
+
+  <main>
+    <section id="v-login" class="card">
+      <h1>Iniciar sesión</h1>
+      <p class="muted">La autenticación ocurre en el servidor (Argon2id + JWT en cookie HttpOnly).</p>
+      <form id="f-login">
+        <label>Cédula profesional o usuario <input name="login" autocomplete="username" required></label>
+        <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+        <button>Entrar</button>
+        <p id="e-login" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="v-pacientes" class="card" hidden>
+      <h2>Pacientes (HU-01)</h2>
+      <form id="f-buscar" class="row">
+        <input name="q" placeholder="Buscar por nombre, CURP o expediente">
+        <button>Buscar</button>
+      </form>
+      <table><thead><tr><th>Expediente</th><th>Nombre</th><th>CURP</th></tr></thead><tbody id="t-pacientes"></tbody></table>
+
+      <h3 id="h-alta">Alta de paciente</h3>
+      <form id="f-alta" class="row">
+        <input name="nombre" placeholder="Nombre completo" required>
+        <input name="curp" placeholder="CURP (18 caracteres)" maxlength="18" required>
+        <button>Registrar</button>
+      </form>
+      <p id="m-alta" role="status"></p>
+    </section>
+
+    <section id="v-bitacora" class="card" hidden>
+      <h2>Bitácora NOM-024 (HU-03)</h2>
+      <p class="muted">Solo inserción: la base de datos rechaza UPDATE y DELETE. La IP la toma el servidor.</p>
+      <button id="b-bitacora">Actualizar</button>
+      <table><thead><tr><th>Fecha</th><th>Acción</th><th>Usuario / rol</th><th>IP</th><th>Detalle</th></tr></thead><tbody id="t-bitacora"></tbody></table>
+    </section>
+
+    <section id="v-denegado" class="card" hidden>
+      <p id="m-denegado"></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -7,5 +7,13 @@ export function createAuditoriaRepository({ db }) {
         [usuarioId == null ? null : String(usuarioId), rol, ip, accion, JSON.stringify(detalle)],
       );
     },
+
+    async listar(limite = 100) {
+      const { rows } = await db.query(
+        'SELECT id, fecha, usuario_id, rol, ip, accion, detalle FROM auditoria_nom024 ORDER BY id DESC LIMIT $1',
+        [limite],
+      );
+      return rows;
+    },
   };
 }

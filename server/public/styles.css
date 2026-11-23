@@ -1,0 +1,22 @@
+:root { --azul: #1f4e79; --borde: #d0d7de; --fondo: #f5f7fa; --texto: #1b1f24; --error: #b42318; --ok: #067647; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; background: var(--fondo); color: var(--texto); }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; background: var(--azul); color: #fff; }
+header #quien { margin-left: auto; }
+main { max-width: 960px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+.card { background: #fff; border: 1px solid var(--borde); border-radius: 8px; padding: 16px; }
+h1, h2, h3 { margin: 0 0 8px; color: var(--azul); }
+label { display: block; margin: 8px 0; }
+input { width: 100%; padding: 8px; border: 1px solid var(--borde); border-radius: 6px; font: inherit; }
+button { padding: 8px 14px; border: 0; border-radius: 6px; background: var(--azul); color: #fff; font: inherit; cursor: pointer; }
+header button { background: #fff; color: var(--azul); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.row input { flex: 1 1 200px; width: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+td code { font-size: 12px; }
+.muted { color: #57606a; margin: 0 0 8px; }
+.error { color: var(--error); }
+.ok { color: var(--ok); }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .2); }
+.table-wrap { overflow-x: auto; }

@@ -2,8 +2,8 @@
 export function createPacienteRepository({ db }) {
   return {
     async existeCurp(curp) {
-      const { rowCount } = await db.query('SELECT 1 FROM pacientes WHERE curp = $1', [curp]);
-      return rowCount > 0;
+      const { rows } = await db.query('SELECT 1 FROM pacientes WHERE curp = $1 LIMIT 1', [curp]);
+      return rows.length > 0;
     },
 
     async crear({ nombre, curp, sexo = null, telefono = null }) {
