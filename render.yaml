@@ -20,9 +20,10 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      # Render pone un proxy delante de la app: req.ip toma la IP que ese proxy reporta.
+      # En Render hay 3 saltos: cliente -> Cloudflare -> balanceador de Render -> app.
+      # Con 3, req.ip es la IP real del cliente (verificado: el 6.o login da 429 aunque se falsifique X-Forwarded-For).
       - key: TRUST_PROXY
-        value: "1"
+        value: "3"
       - key: SEED_PASSWORD
         sync: false
 
