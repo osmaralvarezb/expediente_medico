@@ -26,3 +26,18 @@ export function createPacienteRepository({ db }) {
     },
   };
 }
+
+/**
+ * Datos clínicos cifrados en reposo (HU-04 · SCRUM-7). El Repository cifra al guardar y descifra al leer
+ * con CryptoService; en PostgreSQL solo queda el texto cifrado. Sprint 2 · fase roja.
+ */
+export function createDatosClinicosRepository({ db, crypto }) {
+  return {
+    async guardar(pacienteId, { antecedentes, diagnostico }) {
+      throw new Error('No implementado');
+    },
+    async leer(pacienteId) {
+      throw new Error('No implementado');
+    },
+  };
+}

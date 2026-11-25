@@ -3,20 +3,12 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { hashPassword } from '../src/security/password-hasher.js';
+import { USUARIOS_SEMILLA } from './usuarios-semilla.js';
 
 const password = process.env.SEED_PASSWORD;
 if (!password) throw new Error('Defina SEED_PASSWORD en .env');
 
-const usuarios = [
-  ['dra.mendoza', '10234567', 'Dra. Laura Mendoza', 'adscrito'],
-  ['dr.ruiz', '11345678', 'Dr. Andrés Ruiz', 'residente'],
-  ['mip.torres', null, 'Sofía Torres', 'mip'],
-  ['recepcion', null, 'Carmen López', 'recepcion'],
-  ['admin', null, 'Jorge Salas', 'admin'],
-  // Cuentas exclusivas para la revisión docente (no son cuentas personales de integrantes).
-  ['revision.medico', null, 'Revisión docente (médico)', 'adscrito'],
-  ['revision.admin', null, 'Revisión docente (auditoría)', 'admin'],
-];
+const usuarios = USUARIOS_SEMILLA;
 
 const client = new pg.Client({ connectionString: process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL });
 await client.connect();
