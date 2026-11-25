@@ -1,5 +1,5 @@
 // HU-05 (SCRUM-10) · Rol de Enfermería · Pareja A (Osmar Álvarez / Erik Alba)
-// Sprint 2 · TDD fase roja: estas pruebas se escribieron antes del código.
+// Sprint 2 · TDD: estas pruebas se escribieron antes del código (sesión 6) y pasan a verde en la sesión 7.
 import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 import { ROLES, can } from '../../js/rbac.js';

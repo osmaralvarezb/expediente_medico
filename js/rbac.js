@@ -5,6 +5,7 @@ export const ROLES = {
   mip: 'Interno / Pasante (MIP·MPSS)',
   recepcion: 'Recepción',
   admin: 'Administrador TI',
+  enfermeria: 'Enfermería',
   // QFB / Químico Clínico realiza y valida los análisis; técnico y médico radiólogo toman e interpretan la imagen.
   laboratorio: 'Laboratorio clínico (QFB)',
   imagenologia: 'Imagenología (Radiología)',
@@ -16,6 +17,8 @@ const PERMS = {
   mip: ['patients:read', 'clinical:read', 'clinical:write'],
   recepcion: ['patients:read', 'patients:create', 'patients:update', 'pdf:demographic', 'studies:deliver'],
   admin: ['audit:read', 'users:read', 'users:manage'],
+  // HU-05: Enfermería consulta pacientes; no da altas ni ve la bitácora (mínimo privilegio).
+  enfermeria: ['patients:read'],
   // Mínimo privilegio: solo su lista de trabajo (datos de identificación + indicación), sin acceso al expediente.
   laboratorio: ['studies:process'],
   imagenologia: ['studies:process'],
