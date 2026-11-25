@@ -1,5 +1,5 @@
 // HU-04 (SCRUM-7) · CryptoService AES-256-GCM · Pareja B (Andrés de Anda / Ernesto Morquecho)
-// Sprint 2 · TDD fase roja: estas pruebas se escribieron antes del código.
+// Sprint 2 · TDD: estas pruebas se escribieron antes del código (sesión 6) y pasan a verde en la sesión 7.
 import { describe, it, expect } from 'vitest';
 import { createCryptoService } from '../src/security/crypto.service.js';
 
