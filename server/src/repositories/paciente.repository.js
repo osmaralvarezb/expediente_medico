@@ -29,15 +29,22 @@ export function createPacienteRepository({ db }) {
 
 /**
  * Datos clínicos cifrados en reposo (HU-04 · SCRUM-7). El Repository cifra al guardar y descifra al leer
- * con CryptoService; en PostgreSQL solo queda el texto cifrado. Sprint 2 · fase roja.
+ * con CryptoService; en PostgreSQL solo queda el texto cifrado.
  */
 export function createDatosClinicosRepository({ db, crypto }) {
+  const cifrar = v => (v == null ? null : crypto.cifrar(v));
+  const descifrar = v => (v == null ? null : crypto.descifrar(v));
   return {
     async guardar(pacienteId, { antecedentes, diagnostico }) {
-      throw new Error('No implementado');
+      await db.query(
+        'UPDATE pacientes SET antecedentes_cifrado = $1, diagnostico_cifrado = $2 WHERE id = $3',
+        [cifrar(antecedentes), cifrar(diagnostico), pacienteId]);
     },
     async leer(pacienteId) {
-      throw new Error('No implementado');
+      const { rows } = await db.query(
+        'SELECT antecedentes_cifrado, diagnostico_cifrado FROM pacientes WHERE id = $1', [pacienteId]);
+      if (!rows[0]) return null;
+      return { antecedentes: descifrar(rows[0].antecedentes_cifrado), diagnostico: descifrar(rows[0].diagnostico_cifrado) };
     },
   };
 }
