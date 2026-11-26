@@ -3,7 +3,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 /**
  * CryptoService: cifrado en reposo de datos clínicos con AES-256-GCM (HU-04 · SCRUM-7).
  * Formato del texto cifrado: base64(iv) . base64(tag) . base64(cifrado)
- * La clave (DATA_KEY) son 32 bytes en hexadecimal y vive solo en el entorno (.env / Render).
+ * La clave (DATA_KEY) son 32 bytes, en hexadecimal (64 caracteres) o en base64 (la que genera Render),
+ * y vive solo en el entorno (.env / Render).
  */
 const ALGORITMO = 'aes-256-gcm';
 const BYTES_CLAVE = 32;
@@ -11,8 +12,9 @@ const BYTES_IV = 12; // tamaño recomendado para GCM
 const SEPARADOR = '.';
 
 function leerClave(key) {
-  const clave = Buffer.from(String(key ?? ''), 'hex');
-  if (clave.length !== BYTES_CLAVE) throw new Error(`La clave de cifrado debe ser de ${BYTES_CLAVE} bytes (64 caracteres hexadecimales)`);
+  const texto = String(key ?? '').trim();
+  const clave = /^[0-9a-f]{64}$/i.test(texto) ? Buffer.from(texto, 'hex') : Buffer.from(texto, 'base64');
+  if (clave.length !== BYTES_CLAVE) throw new Error(`La clave de cifrado debe ser de ${BYTES_CLAVE} bytes (hexadecimal o base64)`);
   return clave;
 }
 

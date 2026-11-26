@@ -36,9 +36,10 @@ export function createDatosClinicosRepository({ db, crypto }) {
   const descifrar = v => (v == null ? null : crypto.descifrar(v));
   return {
     async guardar(pacienteId, { antecedentes, diagnostico }) {
-      await db.query(
+      const { rowCount } = await db.query(
         'UPDATE pacientes SET antecedentes_cifrado = $1, diagnostico_cifrado = $2 WHERE id = $3',
         [cifrar(antecedentes), cifrar(diagnostico), pacienteId]);
+      return rowCount > 0;
     },
     async leer(pacienteId) {
       const { rows } = await db.query(
