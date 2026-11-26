@@ -7,7 +7,7 @@
     "test": "node tests/rbac.test.mjs && node tests/domain.test.mjs && node tests/studies.test.mjs && node tests/labs.test.mjs && node tests/rich-text.test.mjs",
     "test:e2e": "node tests/e2e.test.mjs",
     "test:api": "vitest run --root server",
-    "test:sprint2": "vitest run --root server auditoria.eventos crypto.service cifrado.integration enfermeria migraciones.integration",
+    "test:sprint2": "vitest run --root server auditoria.eventos crypto.service cifrado.integration enfermeria migraciones.integration api.clinicos",
     "api": "node server/src/server.js",
     "db:migrate": "node server/db/migrate.js",
     "db:seed": "node server/db/seed.js"
