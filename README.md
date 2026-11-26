@@ -81,13 +81,35 @@ Al no existir servidor, la autenticación, los permisos y la bitácora se aplica
 
 Node.js 22+ · Express 5 · PostgreSQL 16 · Argon2id + JWT en cookie HttpOnly · bitácora NOM-024 de solo inserción.
 
+### Levantar PostgreSQL en local con Docker
+
+Requisitos: Docker Desktop abierto ("Engine running") y Node.js 22+.
+
 ```bash
-cp .env.example .env          # llenar JWT_SECRET, SEED_PASSWORD y contraseñas
-docker compose up -d          # PostgreSQL 16 en localhost:5432
+cp .env.example .env          # llenar contraseñas, JWT_SECRET, DATA_KEY y SEED_PASSWORD
+docker compose up -d          # PostgreSQL 16 en localhost:POSTGRES_PORT (5432 por defecto)
+docker compose ps             # esperar a que el servicio db diga "healthy"
 npm install
-npm run db:migrate            # crea tablas, secuencia de expedientes y trigger de la bitácora
+npm run db:migrate            # aplica 001_init.sql y 002_cifrado_enfermeria.sql; una 2.ª corrida no aplica nada
 npm run db:seed               # usuarios de prueba con hash Argon2id (contraseña = SEED_PASSWORD)
 npm run api                   # http://localhost:3000 (interfaz mínima y /api/*)
+```
+
+Si ya tienes un PostgreSQL instalado en Windows, el puerto 5432 está ocupado y `db:migrate` falla con `password authentication failed for user "ianamed"`. En ese caso pon `POSTGRES_PORT=5433` en `.env`, cambia `5432` por `5433` en `DATABASE_ADMIN_URL` y `DATABASE_URL`, y vuelve a ejecutar `docker compose up -d`.
+
+Comprobaciones rápidas:
+
+```bash
+docker compose exec db psql -U ianamed -d ianamed -c "SELECT nombre FROM schema_migraciones"
+docker compose exec db psql -U ianamed -d ianamed -c "DELETE FROM auditoria_nom024"   # debe fallar: solo inserción
+curl http://localhost:3000/api/health                                                 # {"status":"ok","db":"up"}
+```
+
+Para apagar la base: `docker compose down` (conserva los datos) o `docker compose down -v` (borra el volumen y empieza de cero).
+
+### Pruebas
+
+```bash
 npm run test:api              # unitarias, supertest e integración con PostgreSQL (PGlite, sin Docker)
 ```
 
