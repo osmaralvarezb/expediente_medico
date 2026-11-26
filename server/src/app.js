@@ -5,6 +5,7 @@ import { HttpError } from './errors.js';
 import { createHealthController } from './controllers/health.controller.js';
 import { createPacienteController } from './controllers/paciente.controller.js';
 import { createAuthController } from './controllers/auth.controller.js';
+import { createDatosClinicosController } from './controllers/datos-clinicos.controller.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { loginRateLimiter } from './middleware/login-rate-limiter.js';
 
@@ -16,7 +17,7 @@ const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
  * trustProxy: número de proxies de confianza (1 en Render) para que req.ip sea la IP del cliente
  * que ve el proxy del servidor, no un encabezado que el cliente pueda falsificar a su gusto.
  */
-export function createApp({ db, pacienteService, authService, auditoria, tokens, trustProxy = false } = {}) {
+export function createApp({ db, pacienteService, authService, auditoria, tokens, datosClinicos, trustProxy = false } = {}) {
   const app = express();
   app.set('trust proxy', trustProxy);
   app.use(helmet());
@@ -26,6 +27,7 @@ export function createApp({ db, pacienteService, authService, auditoria, tokens,
   const health = createHealthController({ db });
   const pacientes = createPacienteController({ pacienteService, auditoria });
   const auth = createAuthController({ authService, auditoria });
+  const clinicos = createDatosClinicosController({ datosClinicos, auditoria });
   const sesion = requireAuth({ tokens });
   const permiso = perm => requirePermission(perm, { auditoria });
 
@@ -35,6 +37,9 @@ export function createApp({ db, pacienteService, authService, auditoria, tokens,
   app.get('/api/auth/me', sesion, (req, res) => res.json({ usuario: { id: req.user.sub, username: req.user.username, role: req.user.role } }));
   app.get('/api/pacientes', sesion, permiso('patients:read'), pacientes.buscar);
   app.post('/api/pacientes', sesion, permiso('patients:create'), pacientes.crear);
+  // HU-04: datos clínicos cifrados en reposo; solo roles con clinical:read / clinical:write.
+  app.get('/api/pacientes/:id/clinicos', sesion, permiso('clinical:read'), clinicos.leer);
+  app.put('/api/pacientes/:id/clinicos', sesion, permiso('clinical:write'), clinicos.guardar);
   app.get('/api/auditoria', sesion, permiso('audit:read'), async (req, res) => res.json(await auditoria.listar(100)));
 
   app.use((req, res) => res.status(404).json({ error: 'No encontrado' }));

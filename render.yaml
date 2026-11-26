@@ -26,6 +26,9 @@ services:
         value: "3"
       - key: SEED_PASSWORD
         sync: false
+      # HU-04: clave AES-256 de los datos clínicos (32 bytes en base64, generada por Render; nunca en el repositorio).
+      - key: DATA_KEY
+        generateValue: true
 
 databases:
   - name: ianamed-db

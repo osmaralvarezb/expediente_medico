@@ -38,4 +38,11 @@ describe('CryptoService AES-256-GCM (HU-04)', () => {
   it('T-30 sin una clave de 32 bytes el servicio no se crea', () => {
     expect(() => createCryptoService({ key: '' })).toThrow(/32 bytes/);
   });
+
+  // T-39
+  it('T-39 acepta la clave de 32 bytes en base64 que genera Render (generateValue)', () => {
+    const base64 = Buffer.alloc(32, 7).toString('base64');
+    const crypto = createCryptoService({ key: base64 });
+    expect(crypto.descifrar(crypto.cifrar(TEXTO))).toBe(TEXTO);
+  });
 });
